@@ -8,6 +8,7 @@ target_link_libraries(
     cminusfc
     IR_lib
     common
+    codegen
     syntax
     stdc++fs
 )

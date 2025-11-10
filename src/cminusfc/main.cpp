@@ -1,6 +1,7 @@
 #include "Module.hpp"
 #include "ast.hpp"
 #include "cminusf_builder.hpp"
+#include "CodeGen.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -16,6 +17,7 @@ struct Config {
     std::filesystem::path output_file;
 
     bool emitast{false};
+    bool emitasm{false};
     bool emitllvm{false};
 
     Config(int argc, char **argv) : argc(argc), argv(argv) {
@@ -55,9 +57,13 @@ int main(int argc, char **argv) {
             output_stream << "; ModuleID = 'cminus'\n";
             output_stream << "source_filename = " << abs_path << "\n\n";
             output_stream << m->print();
+        } else if (config.emitasm) {
+            CodeGen codegen(m.get());
+            codegen.run();
+            output_stream << codegen.print();
         }
 
-        // TODO: lab3 lab4 (IR optimization or codegen)
+        // TODO: lab4 (IR optimization or codegen)
     }
 
     return 0;
@@ -77,6 +83,8 @@ void Config::parse_cmd_line() {
             }
         } else if (argv[i] == "-emit-ast"s) {
             emitast = true;
+        } else if (argv[i] == "-S"s) {
+            emitasm = true;
         } else if (argv[i] == "-emit-llvm"s) {
             emitllvm = true;
         } else {
@@ -95,11 +103,9 @@ void Config::check() {
     if (input_file.empty()) {
         print_err("no input file");
     }
-	/*
     if (input_file.extension() != ".cminus") {
         print_err("file format not recognized");
     }
-	*/
     if (output_file.empty()) {
         output_file = input_file.stem();
     }
@@ -107,7 +113,7 @@ void Config::check() {
 
 void Config::print_help() const {
     std::cout << "Usage: " << exe_name
-              << " [-h|--help] [-o <target-file>] [-mem2reg] [-emit-llvm] [-S] "
+              << " [-h|--help] [-o <target-file>] [-emit-ast] [-emit-llvm] [-S] "
                  "<input-file>"
               << std::endl;
     exit(0);
