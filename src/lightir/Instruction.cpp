@@ -303,7 +303,10 @@ AllocaInst *AllocaInst::create_alloca_begin(Type *ty, BasicBlock *bb) {
 	if(bb != nullptr)
 	{
 		ret->set_parent(bb);
-		bb->add_instr_begin(ret);
+        if (bb->is_terminated())
+		    bb->add_instr_before_end(ret);
+        else
+            bb->add_instruction(ret);
 	}
 	return ret;
 }
