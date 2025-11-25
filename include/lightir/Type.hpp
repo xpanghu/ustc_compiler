@@ -23,7 +23,13 @@ class Type {
     };
 
     explicit Type(TypeID tid, Module *m);
-    ~Type() = default;
+
+// 生成 vptr, 使调试时能够显示 IntegerType 等 Type 的信息
+#ifdef DEBUG_BUILD
+    virtual
+#endif
+
+	~Type() = default;
 
     TypeID get_type_id() const { return tid_; }
 

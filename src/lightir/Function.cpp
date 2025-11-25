@@ -58,8 +58,7 @@ void Function::set_instr_name() {
             }
         }
     }
-    for (auto &bb1 : basic_blocks_) {
-        auto bb = &bb1;
+    for (auto bb : basic_blocks_) {
         if (seq.find(bb) == seq.end()) {
             auto seq_num = seq.size() + seq_cnt_;
             if (bb->set_name("label" + std::to_string(seq_num))) {
@@ -116,8 +115,7 @@ std::string Function::print() {
     } else {
         func_ir += " {";
         func_ir += "\n";
-        for (auto &bb1 : this->get_basic_blocks()) {
-            auto bb = &bb1;
+        for (auto &bb : this->get_basic_blocks()) {
             func_ir += bb->print();
         }
         func_ir += "}";
@@ -139,18 +137,18 @@ void Function::check_for_block_relation_error()
 {
     // 检查函数的基本块表是否包含所有且仅包含 get_parent 是本函数的基本块
     std::unordered_set<BasicBlock*> bbs;
-    for (auto& bb : basic_blocks_)
+    for (auto bb : basic_blocks_)
     {
-        bbs.emplace(&bb);
+        bbs.emplace(bb);
     }
-    for (auto& bb : basic_blocks_)
+    for (auto bb : basic_blocks_)
     {
-        assert((bb.get_parent() == this) && "函数 F 的基本块表中包含基本块 a, 但 a 的 get_parent 方法不返回 F");
-        for (auto i: bb.get_succ_basic_blocks())
+        assert((bb->get_parent() == this) && "函数 F 的基本块表中包含基本块 a, 但 a 的 get_parent 方法不返回 F");
+        for (auto i: bb->get_succ_basic_blocks())
         {
             assert((bbs.count(i)) && "函数 F 的基本块表中包含基本块 a, a 的后继块表中的某基本块 b 不在 F 的基本块表中");
         }
-        for (auto i: bb.get_pre_basic_blocks())
+        for (auto i: bb->get_pre_basic_blocks())
         {
             assert((bbs.count(i)) && "函数 F 的基本块表中包含基本块 a, a 的前驱块表中的某基本块 b 不在 F 的基本块表中");
         }
@@ -171,22 +169,22 @@ void Function::check_for_block_relation_error()
     }
 	*/
     // 检查基本块基本信息
-    for (auto& bb : basic_blocks_)
+    for (auto bb : basic_blocks_)
     {
-        assert((!bb.get_instructions().empty()) && "发现了空基本块");
-        auto b = &bb.get_instructions().back();
+        assert((!bb->get_instructions().empty()) && "发现了空基本块");
+        auto b = &bb->get_instructions().back();
         assert((b->is_br() || b->is_ret()) && "发现了无 terminator 基本块");
-        assert((b->is_br() || bb.get_succ_basic_blocks().empty()) && "某基本块末尾是 ret 指令但是后继块表不是空的, 或者末尾是 br 但后继表为空");
+        assert((b->is_br() || bb->get_succ_basic_blocks().empty()) && "某基本块末尾是 ret 指令但是后继块表不是空的, 或者末尾是 br 但后继表为空");
     }
     // 检查基本块前驱后继关系是否是与 branch 指令对应
-    for (auto& bb : basic_blocks_)
+    for (auto bb : basic_blocks_)
     {
-        if(!bb.get_succ_basic_blocks().empty()){
+        if(!bb->get_succ_basic_blocks().empty()){
             std::unordered_set<BasicBlock*> suc_table;
             std::unordered_set<BasicBlock*> br_get;
-            for (auto suc : bb.get_succ_basic_blocks())
+            for (auto suc : bb->get_succ_basic_blocks())
                 suc_table.emplace(suc);
-            auto& ops = bb.get_instructions().back().get_operands();
+            auto& ops = bb->get_instructions().back().get_operands();
             for (auto i : ops)
             {
                 auto bb2 = dynamic_cast<BasicBlock*>(i);
@@ -199,7 +197,7 @@ void Function::check_for_block_relation_error()
             for(auto i : suc_table) {
                 bool ok = false;
                 for(auto j : i->get_pre_basic_blocks()) {
-                    if(j == &bb){
+                    if(j == bb){
                         ok = true;
                         break;
                     }
@@ -211,12 +209,12 @@ void Function::check_for_block_relation_error()
     // 检查基本块前驱后继关系是否是与 branch 指令对应
     for (auto& bb : basic_blocks_)
     {
-        for (auto pre : bb.get_pre_basic_blocks())
+        for (auto pre : bb->get_pre_basic_blocks())
         {
             bool ok = false;
             for (auto i : pre->get_succ_basic_blocks())
             {
-                if (i == &bb)
+                if (i == bb)
                 {
                     ok = true;
                     break;
@@ -229,9 +227,9 @@ void Function::check_for_block_relation_error()
     // 检查指令 parent 设置
     for (auto& bb : basic_blocks_)
     {
-        for (auto& inst : bb.get_instructions())
+        for (auto& inst : bb->get_instructions())
         {
-            assert ((inst.get_parent() == &bb) && "基本块 A 指令表包含指令 b, 但是 b 的 get_parent 函数不返回 A");
+            assert ((inst.get_parent() == bb) && "基本块 A 指令表包含指令 b, 但是 b 的 get_parent 函数不返回 A");
         }
     }
 }

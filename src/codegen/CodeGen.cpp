@@ -14,8 +14,8 @@ void CodeGen::allocate() {
     }
 
     // 为指令结果分配栈空间
-    for (auto &bb : context.func->get_basic_blocks()) {
-        for (auto &instr : bb.get_instructions()) {
+    for (auto bb : context.func->get_basic_blocks()) {
+        for (auto& instr : bb->get_instructions()) {
             // 每个非 void 的定值都分配栈空间
             if (not instr.is_void()) {
                 auto size = instr.get_type()->get_size();
@@ -407,10 +407,10 @@ void CodeGen::run() {
             // 生成 prologue
             gen_prologue();
 
-            for (auto &bb : func.get_basic_blocks()) {
-                context.bb = &bb;
+            for (auto bb : func.get_basic_blocks()) {
+                context.bb = bb;
                 append_inst(label_name(context.bb), ASMInstruction::Label);
-                for (auto &instr : bb.get_instructions()) {
+                for (auto &instr : bb->get_instructions()) {
                     // For debug
                     append_inst(instr.print(), ASMInstruction::Comment);
                     context.inst = &instr; // 更新 context

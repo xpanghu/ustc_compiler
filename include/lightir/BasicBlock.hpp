@@ -13,7 +13,7 @@ class Function;
 class Instruction;
 class Module;
 
-class BasicBlock : public Value, public llvm::ilist_node<BasicBlock> {
+class BasicBlock : public Value {
   public:
     ~BasicBlock() = default;
     static BasicBlock *create(Module *m, const std::string &name,

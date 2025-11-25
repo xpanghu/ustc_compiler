@@ -36,10 +36,11 @@ class Function : public Value, public llvm::ilist_node<Function> {
 
     Module *get_parent() const;
 
+	// 此处 remove 的 BasicBlock, 需要手动 delete
     void remove(BasicBlock *bb);
-    BasicBlock *get_entry_block() { return &*basic_blocks_.begin(); }
+    BasicBlock *get_entry_block() { return basic_blocks_.front(); }
 
-    llvm::ilist<BasicBlock> &get_basic_blocks() { return basic_blocks_; }
+    std::list<BasicBlock*> &get_basic_blocks() { return basic_blocks_; }
     std::list<Argument> &get_args() { return arguments_; }
 
     bool is_declaration() { return basic_blocks_.empty(); }
@@ -50,7 +51,7 @@ class Function : public Value, public llvm::ilist_node<Function> {
     void check_for_block_relation_error();
 
   private:
-    llvm::ilist<BasicBlock> basic_blocks_;
+    std::list<BasicBlock*> basic_blocks_;
     std::list<Argument> arguments_;
     Module *parent_;
     unsigned seq_cnt_; // print use
