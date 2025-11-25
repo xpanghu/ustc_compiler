@@ -5,11 +5,16 @@
 #include "Value.hpp"
 
 class Constant : public User {
-  private:
+private:
     // int value;
-  public:
+public:
+    Constant(const Constant& other) = delete;
+    Constant(Constant&& other) noexcept = delete;
+    Constant& operator=(const Constant& other) = delete;
+    Constant& operator=(Constant&& other) noexcept = delete;
+
     Constant(Type *ty, const std::string &name = "") : User(ty, name) {}
-    ~Constant() = default;
+    ~Constant() override;
 };
 
 class ConstantInt : public Constant {
@@ -18,10 +23,10 @@ class ConstantInt : public Constant {
     ConstantInt(Type *ty, int val) : Constant(ty, ""), value_(val) {}
 
   public:
-    int get_value() { return value_; }
+    int get_value() const { return value_; }
     static ConstantInt *get(int val, Module *m);
     static ConstantInt *get(bool val, Module *m);
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class ConstantArray : public Constant {
@@ -31,16 +36,21 @@ class ConstantArray : public Constant {
     ConstantArray(ArrayType *ty, const std::vector<Constant *> &val);
 
   public:
-    ~ConstantArray() = default;
+    ConstantArray(const ConstantArray& other) = delete;
+    ConstantArray(ConstantArray&& other) noexcept = delete;
+    ConstantArray& operator=(const ConstantArray& other) = delete;
+    ConstantArray& operator=(ConstantArray&& other) noexcept = delete;
 
-    Constant *get_element_value(int index);
+    ~ConstantArray() override = default;
 
-    unsigned get_size_of_array() { return const_array.size(); }
+    Constant *get_element_value(int index) const;
+
+    int get_size_of_array() const { return static_cast<int>(const_array.size()); }
 
     static ConstantArray *get(ArrayType *ty,
                               const std::vector<Constant *> &val);
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class ConstantZero : public Constant {
@@ -49,7 +59,7 @@ class ConstantZero : public Constant {
 
   public:
     static ConstantZero *get(Type *ty, Module *m);
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class ConstantFP : public Constant {
@@ -59,6 +69,6 @@ class ConstantFP : public Constant {
 
   public:
     static ConstantFP *get(float val, Module *m);
-    float get_value() { return val_; }
-    virtual std::string print() override;
+    float get_value() const { return val_; }
+    std::string print() override;
 };

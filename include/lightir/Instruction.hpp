@@ -3,15 +3,12 @@
 #include "Type.hpp"
 #include "User.hpp"
 
-#include <cstdint>
-#include <llvm/ADT/ilist_node.h>
-
 class BasicBlock;
 class Function;
 
-class Instruction : public User, public llvm::ilist_node<Instruction> {
+class Instruction : public User {
   public:
-    enum OpID : uint32_t {
+    enum OpID : uint8_t {
         // Terminator Instructions
         ret,
         br,
@@ -56,21 +53,26 @@ class Instruction : public User, public llvm::ilist_node<Instruction> {
     /* @parent: if parent!=nullptr, auto insert to bb
      * @ty: result type */
     Instruction(Type *ty, OpID id, BasicBlock *parent = nullptr);
-    Instruction(const Instruction &) = delete;
-    virtual ~Instruction() = default;
+    ~Instruction() override;
+
+    Instruction(const Instruction& other) = delete;
+    Instruction(Instruction&& other) noexcept = delete;
+    Instruction& operator=(const Instruction& other) = delete;
+    Instruction& operator=(Instruction&& other) noexcept = delete;
 
     BasicBlock *get_parent() { return parent_; }
     const BasicBlock *get_parent() const { return parent_; }
     void set_parent(BasicBlock *parent) { this->parent_ = parent; }
 
     // Return the function this instruction belongs to.
-    Function *get_function();
-    Module *get_module();
+    Function *get_function() const;
+    Module *get_module() const;
 
     OpID get_instr_type() const { return op_id_; }
     std::string get_instr_op_name() const;
 
-    bool is_void() {
+    bool is_void() const
+    {
         return ((op_id_ == ret) || (op_id_ == br) || (op_id_ == store) ||
                 (op_id_ == call && this->get_type()->is_void_type()));
     }
@@ -136,7 +138,7 @@ class IBinaryInst : public BaseInst<IBinaryInst> {
     static IBinaryInst *create_mul(Value *v1, Value *v2, BasicBlock *bb);
     static IBinaryInst *create_sdiv(Value *v1, Value *v2, BasicBlock *bb);
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class FBinaryInst : public BaseInst<FBinaryInst> {
@@ -151,7 +153,7 @@ class FBinaryInst : public BaseInst<FBinaryInst> {
     static FBinaryInst *create_fmul(Value *v1, Value *v2, BasicBlock *bb);
     static FBinaryInst *create_fdiv(Value *v1, Value *v2, BasicBlock *bb);
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class ICmpInst : public BaseInst<ICmpInst> {
@@ -168,7 +170,7 @@ class ICmpInst : public BaseInst<ICmpInst> {
     static ICmpInst *create_eq(Value *v1, Value *v2, BasicBlock *bb);
     static ICmpInst *create_ne(Value *v1, Value *v2, BasicBlock *bb);
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class FCmpInst : public BaseInst<FCmpInst> {
@@ -185,21 +187,21 @@ class FCmpInst : public BaseInst<FCmpInst> {
     static FCmpInst *create_feq(Value *v1, Value *v2, BasicBlock *bb);
     static FCmpInst *create_fne(Value *v1, Value *v2, BasicBlock *bb);
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class CallInst : public BaseInst<CallInst> {
     friend BaseInst<CallInst>;
 
   protected:
-    CallInst(Function *func, std::vector<Value *> args, BasicBlock *bb);
+    CallInst(Function *func, const std::vector<Value *>& args, BasicBlock *bb);
 
   public:
-    static CallInst *create_call(Function *func, std::vector<Value *> args,
+    static CallInst *create_call(Function *func, const std::vector<Value *>& args,
                                  BasicBlock *bb);
     FunctionType *get_function_type() const;
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class BranchInst : public BaseInst<BranchInst> {
@@ -208,9 +210,14 @@ class BranchInst : public BaseInst<BranchInst> {
   private:
     BranchInst(Value *cond, BasicBlock *if_true, BasicBlock *if_false,
                BasicBlock *bb);
-    ~BranchInst();
+    ~BranchInst() override;
 
-  public:
+public:
+    BranchInst(const BranchInst& other) = delete;
+    BranchInst(BranchInst&& other) noexcept = delete;
+    BranchInst& operator=(const BranchInst& other) = delete;
+    BranchInst& operator=(BranchInst&& other) noexcept = delete;
+
     static BranchInst *create_cond_br(Value *cond, BasicBlock *if_true,
                                       BasicBlock *if_false, BasicBlock *bb);
     static BranchInst *create_br(BasicBlock *if_true, BasicBlock *bb);
@@ -219,7 +226,7 @@ class BranchInst : public BaseInst<BranchInst> {
 
     Value *get_condition() const { return get_operand(0); }
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class ReturnInst : public BaseInst<ReturnInst> {
@@ -233,69 +240,66 @@ class ReturnInst : public BaseInst<ReturnInst> {
     static ReturnInst *create_void_ret(BasicBlock *bb);
     bool is_void_ret() const;
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class GetElementPtrInst : public BaseInst<GetElementPtrInst> {
     friend BaseInst<GetElementPtrInst>;
 
   private:
-    GetElementPtrInst(Value *ptr, std::vector<Value *> idxs, BasicBlock *bb);
+    GetElementPtrInst(Value *ptr, const std::vector<Value *>& idxs, BasicBlock *bb);
 
   public:
-    static Type *get_element_type(Value *ptr, std::vector<Value *> idxs);
-    static GetElementPtrInst *create_gep(Value *ptr, std::vector<Value *> idxs,
+    static Type *get_element_type(const Value *ptr, const std::vector<Value *>& idxs);
+    static GetElementPtrInst *create_gep(Value *ptr, const std::vector<Value *>& idxs,
                                          BasicBlock *bb);
     Type *get_element_type() const;
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class StoreInst : public BaseInst<StoreInst> {
     friend BaseInst<StoreInst>;
 
-  private:
     StoreInst(Value *val, Value *ptr, BasicBlock *bb);
 
   public:
     static StoreInst *create_store(Value *val, Value *ptr, BasicBlock *bb);
 
-    Value *get_rval() { return this->get_operand(0); }
-    Value *get_lval() { return this->get_operand(1); }
+    Value *get_rval() const { return this->get_operand(0); }
+    Value *get_lval() const { return this->get_operand(1); }
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class LoadInst : public BaseInst<LoadInst> {
     friend BaseInst<LoadInst>;
 
-  private:
     LoadInst(Value *ptr, BasicBlock *bb);
 
   public:
     static LoadInst *create_load(Value *ptr, BasicBlock *bb);
 
     Value *get_lval() const { return this->get_operand(0); }
-    Type *get_load_type() const { return get_type(); };
+    Type *get_load_type() const { return get_type(); }
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class AllocaInst : public BaseInst<AllocaInst> {
     friend BaseInst<AllocaInst>;
 
-  private:
     AllocaInst(Type *ty, BasicBlock *bb);
 
   public:
+    // 新特性：指令表分为 {alloca, phi | other inst} 两段，创建和向基本块插入 alloca 和 phi，都只会插在第一段，它们在常规指令前面
     static AllocaInst *create_alloca(Type *ty, BasicBlock *bb);
-    static AllocaInst *create_alloca_begin(Type *ty, BasicBlock *bb);
 	
     Type *get_alloca_type() const {
         return get_type()->get_pointer_element_type();
-    };
+    }
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class ZextInst : public BaseInst<ZextInst> {
@@ -308,9 +312,9 @@ class ZextInst : public BaseInst<ZextInst> {
     static ZextInst *create_zext(Value *val, Type *ty, BasicBlock *bb);
     static ZextInst *create_zext_to_i32(Value *val, BasicBlock *bb);
 
-    Type *get_dest_type() const { return get_type(); };
+    Type *get_dest_type() const { return get_type(); }
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class FpToSiInst : public BaseInst<FpToSiInst> {
@@ -323,9 +327,9 @@ class FpToSiInst : public BaseInst<FpToSiInst> {
     static FpToSiInst *create_fptosi(Value *val, Type *ty, BasicBlock *bb);
     static FpToSiInst *create_fptosi_to_i32(Value *val, BasicBlock *bb);
 
-    Type *get_dest_type() const { return get_type(); };
+    Type *get_dest_type() const { return get_type(); }
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class SiToFpInst : public BaseInst<SiToFpInst> {
@@ -337,34 +341,38 @@ class SiToFpInst : public BaseInst<SiToFpInst> {
   public:
     static SiToFpInst *create_sitofp(Value *val, BasicBlock *bb);
 
-    Type *get_dest_type() const { return get_type(); };
+    Type *get_dest_type() const { return get_type(); }
 
-    virtual std::string print() override;
+    std::string print() override;
 };
 
 class PhiInst : public BaseInst<PhiInst> {
     friend BaseInst<PhiInst>;
 
   private:
-    PhiInst(Type *ty, std::vector<Value *> vals,
-            std::vector<BasicBlock *> val_bbs, BasicBlock *bb);
+    PhiInst(Type *ty, const std::vector<Value *>& vals,
+            const std::vector<BasicBlock *>& val_bbs, BasicBlock *bb);
 
   public:
+	// 新特性：指令表分为 {alloca, phi | other inst} 两段，创建和向基本块插入 alloca 和 phi，都只会插在第一段，它们在常规指令前面
     static PhiInst *create_phi(Type *ty, BasicBlock *bb,
-                               std::vector<Value *> vals = {},
-                               std::vector<BasicBlock *> val_bbs = {});
+                               const std::vector<Value *>& vals = {},
+                               const std::vector<BasicBlock *>& val_bbs = {});
 
     void add_phi_pair_operand(Value *val, Value *pre_bb) {
         this->add_operand(val);
         this->add_operand(pre_bb);
     }
-    std::vector<std::pair<Value *, BasicBlock *>> get_phi_pairs() {
+    std::vector<std::pair<Value *, BasicBlock *>> get_phi_pairs() const
+    {
         std::vector<std::pair<Value *, BasicBlock *>> res;
-        for (size_t i = 0; i < get_num_operand(); i += 2) {
-            res.push_back({this->get_operand(i),
-                           this->get_operand(i + 1)->as<BasicBlock>()});
+        int ops = static_cast<int>(get_num_operand());
+        for (int i = 0; i < ops; i += 2) {
+            res.emplace_back(this->get_operand(i),
+                             this->get_operand(i + 1)->as<BasicBlock>());
         }
         return res;
     }
-    virtual std::string print() override;
+
+    std::string print() override;
 };

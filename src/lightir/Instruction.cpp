@@ -7,7 +7,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -17,8 +16,10 @@ Instruction::Instruction(Type *ty, OpID id, BasicBlock *parent)
         parent->add_instruction(this);
 }
 
-Function *Instruction::get_function() { return parent_->get_parent(); }
-Module *Instruction::get_module() { return parent_->get_module(); }
+Instruction::~Instruction() = default;
+
+Function *Instruction::get_function() const { return parent_->get_parent(); }
+Module *Instruction::get_module() const { return parent_->get_module(); }
 
 std::string Instruction::get_instr_op_name() const {
     return print_instr_op_name(op_id_);
@@ -122,12 +123,12 @@ FCmpInst *FCmpInst::create_fne(Value *v1, Value *v2, BasicBlock *bb) {
     return create(fne, v1, v2, bb);
 }
 
-CallInst::CallInst(Function *func, std::vector<Value *> args, BasicBlock *bb)
+CallInst::CallInst(Function *func, const std::vector<Value *>& args, BasicBlock *bb)
     : BaseInst<CallInst>(func->get_return_type(), call, bb) {
     assert(func->get_type()->is_function_type() && "Not a function");
     assert((func->get_num_of_args() == args.size()) && "Wrong number of args");
     add_operand(func);
-    auto func_type = static_cast<FunctionType *>(func->get_type());
+    auto func_type = dynamic_cast<FunctionType *>(func->get_type());
     for (unsigned i = 0; i < args.size(); i++) {
         assert(func_type->get_param_type(i) == args[i]->get_type() &&
                "CallInst: Wrong arg type");
@@ -135,13 +136,13 @@ CallInst::CallInst(Function *func, std::vector<Value *> args, BasicBlock *bb)
     }
 }
 
-CallInst *CallInst::create_call(Function *func, std::vector<Value *> args,
+CallInst *CallInst::create_call(Function *func, const std::vector<Value *>& args,
                                 BasicBlock *bb) {
     return create(func, args, bb);
 }
 
 FunctionType *CallInst::get_function_type() const {
-    return static_cast<FunctionType *>(get_operand(0)->get_type());
+    return dynamic_cast<FunctionType *>(get_operand(0)->get_type());
 }
 
 BranchInst::BranchInst(Value *cond, BasicBlock *if_true, BasicBlock *if_false,
@@ -170,10 +171,10 @@ BranchInst::BranchInst(Value *cond, BasicBlock *if_true, BasicBlock *if_false,
 BranchInst::~BranchInst() {
     std::list<BasicBlock *> succs;
     if (is_cond_br()) {
-        succs.push_back(static_cast<BasicBlock *>(get_operand(1)));
-        succs.push_back(static_cast<BasicBlock *>(get_operand(2)));
+        succs.push_back(dynamic_cast<BasicBlock *>(get_operand(1)));
+        succs.push_back(dynamic_cast<BasicBlock *>(get_operand(2)));
     } else {
-        succs.push_back(static_cast<BasicBlock *>(get_operand(0)));
+        succs.push_back(dynamic_cast<BasicBlock *>(get_operand(0)));
     }
     for (auto succ_bb : succs) {
         if (succ_bb) {
@@ -214,20 +215,20 @@ ReturnInst *ReturnInst::create_void_ret(BasicBlock *bb) {
 
 bool ReturnInst::is_void_ret() const { return get_num_operand() == 0; }
 
-GetElementPtrInst::GetElementPtrInst(Value *ptr, std::vector<Value *> idxs,
+GetElementPtrInst::GetElementPtrInst(Value *ptr, const std::vector<Value *>& idxs,
                                      BasicBlock *bb)
     : BaseInst<GetElementPtrInst>(PointerType::get(get_element_type(ptr, idxs)),
                                   getelementptr, bb) {
     add_operand(ptr);
-    for (unsigned i = 0; i < idxs.size(); i++) {
-        Value *idx = idxs[i];
-        assert(idx->get_type()->is_integer_type() && "Index is not integer");
+    for (auto idx : idxs)
+    {
+	    assert(idx->get_type()->is_integer_type() && "Index is not integer");
         add_operand(idx);
     }
 }
 
-Type *GetElementPtrInst::get_element_type(Value *ptr,
-                                          std::vector<Value *> idxs) {
+Type *GetElementPtrInst::get_element_type(const Value *ptr,
+                                          const std::vector<Value *>& idxs) {
     assert(ptr->get_type()->is_pointer_type() &&
            "GetElementPtrInst ptr is not a pointer");
 
@@ -236,14 +237,14 @@ Type *GetElementPtrInst::get_element_type(Value *ptr,
         "GetElementPtrInst ptr is wrong type" &&
         (ty->is_array_type() || ty->is_integer_type() || ty->is_float_type()));
     if (ty->is_array_type()) {
-        ArrayType *arr_ty = static_cast<ArrayType *>(ty);
+        ArrayType *arr_ty = dynamic_cast<ArrayType *>(ty);
         for (unsigned i = 1; i < idxs.size(); i++) {
             ty = arr_ty->get_element_type();
             if (i < idxs.size() - 1) {
                 assert(ty->is_array_type() && "Index error!");
             }
             if (ty->is_array_type()) {
-                arr_ty = static_cast<ArrayType *>(ty);
+                arr_ty = dynamic_cast<ArrayType *>(ty);
             }
         }
     }
@@ -255,7 +256,7 @@ Type *GetElementPtrInst::get_element_type() const {
 }
 
 GetElementPtrInst *GetElementPtrInst::create_gep(Value *ptr,
-                                                 std::vector<Value *> idxs,
+                                                 const std::vector<Value *>& idxs,
                                                  BasicBlock *bb) {
     return create(ptr, idxs, bb);
 }
@@ -287,7 +288,7 @@ LoadInst *LoadInst::create_load(Value *ptr, BasicBlock *bb) {
 
 AllocaInst::AllocaInst(Type *ty, BasicBlock *bb)
     : BaseInst<AllocaInst>(PointerType::get(ty), alloca, bb) {
-    static const std::array allowed_alloc_type = {
+    static constexpr std::array allowed_alloc_type = {
         Type::IntegerTyID, Type::FloatTyID, Type::ArrayTyID, Type::PointerTyID};
     assert(std::find(allowed_alloc_type.begin(), allowed_alloc_type.end(),
                      ty->get_type_id()) != allowed_alloc_type.end() &&
@@ -298,26 +299,13 @@ AllocaInst *AllocaInst::create_alloca(Type *ty, BasicBlock *bb) {
     return create(ty, bb);
 }
 
-AllocaInst *AllocaInst::create_alloca_begin(Type *ty, BasicBlock *bb) {
-    auto ret = create(ty, nullptr);
-	if(bb != nullptr)
-	{
-		ret->set_parent(bb);
-        if (bb->is_terminated())
-		    bb->add_instr_before_end(ret);
-        else
-            bb->add_instruction(ret);
-	}
-	return ret;
-}
-
 ZextInst::ZextInst(Value *val, Type *ty, BasicBlock *bb)
     : BaseInst<ZextInst>(ty, zext, bb) {
     assert(val->get_type()->is_integer_type() &&
            "ZextInst operand is not integer");
     assert(ty->is_integer_type() && "ZextInst destination type is not integer");
-    assert((static_cast<IntegerType *>(val->get_type())->get_num_bits() <
-            static_cast<IntegerType *>(ty)->get_num_bits()) &&
+    assert((dynamic_cast<IntegerType *>(val->get_type())->get_num_bits() <
+		    dynamic_cast<IntegerType *>(ty)->get_num_bits()) &&
            "ZextInst operand bit size is not smaller than destination type bit "
            "size");
     add_operand(val);
@@ -358,8 +346,8 @@ SiToFpInst *SiToFpInst::create_sitofp(Value *val, BasicBlock *bb) {
     return create(val, bb->get_module()->get_float_type(), bb);
 }
 
-PhiInst::PhiInst(Type *ty, std::vector<Value *> vals,
-                 std::vector<BasicBlock *> val_bbs, BasicBlock *bb)
+PhiInst::PhiInst(Type *ty, const std::vector<Value *>& vals,
+                 const std::vector<BasicBlock *>& val_bbs, BasicBlock *bb)
     : BaseInst<PhiInst>(ty, phi) {
     assert(vals.size() == val_bbs.size() && "Unmatched vals and bbs");
     for (unsigned i = 0; i < vals.size(); i++) {
@@ -371,7 +359,7 @@ PhiInst::PhiInst(Type *ty, std::vector<Value *> vals,
 }
 
 PhiInst *PhiInst::create_phi(Type *ty, BasicBlock *bb,
-                             std::vector<Value *> vals,
-                             std::vector<BasicBlock *> val_bbs) {
+                             const std::vector<Value *>& vals,
+                             const std::vector<BasicBlock *>& val_bbs) {
     return create(ty, vals, val_bbs, bb);
 }

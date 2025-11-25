@@ -1,7 +1,9 @@
 #include "Constant.hpp"
+
+#include <cstring>
+
 #include "Module.hpp"
 
-#include <iostream>
 #include <memory>
 #include <sstream>
 #include <unordered_map>
@@ -26,6 +28,8 @@ static std::unordered_map<std::pair<float, Module *>,
                           std::unique_ptr<ConstantFP>, pair_hash>
     cached_float;
 static std::unordered_map<Type *, std::unique_ptr<ConstantZero>> cached_zero;
+
+Constant::~Constant() = default;
 
 ConstantInt *ConstantInt::get(int val, Module *m) {
     if (cached_int.find(std::make_pair(val, m)) != cached_int.end())
@@ -62,7 +66,8 @@ ConstantArray::ConstantArray(ArrayType *ty, const std::vector<Constant *> &val)
     this->const_array.assign(val.begin(), val.end());
 }
 
-Constant *ConstantArray::get_element_value(int index) {
+Constant *ConstantArray::get_element_value(int index) const
+{
     return this->const_array[index];
 }
 
@@ -76,7 +81,7 @@ std::string ConstantArray::print() {
     const_ir += this->get_type()->print();
     const_ir += " ";
     const_ir += "[";
-    for (unsigned i = 0; i < this->get_size_of_array(); i++) {
+    for (int i = 0; i < this->get_size_of_array(); i++) {
         Constant *element = get_element_value(i);
         if (!dynamic_cast<ConstantArray *>(get_element_value(i))) {
             const_ir += element->get_type()->print();
@@ -102,7 +107,9 @@ std::string ConstantFP::print() {
     std::stringstream fp_ir_ss;
     std::string fp_ir;
     double val = this->get_value();
-    fp_ir_ss << "0x" << std::hex << *(uint64_t *)&val << std::endl;
+    uint64_t uval;
+    memcpy(&uval, &val, sizeof(double));
+    fp_ir_ss << "0x" << std::hex << uval << '\n';
     fp_ir_ss >> fp_ir;
     return fp_ir;
 }

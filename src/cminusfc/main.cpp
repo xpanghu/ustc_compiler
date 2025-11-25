@@ -46,7 +46,7 @@ int main(int argc, char **argv) {
         ASTPrinter printer;
         ast.run_visitor(printer);
     } else {
-        std::unique_ptr<Module> m;
+        Module* m;
         CminusfBuilder builder;
         ast.run_visitor(builder);
         m = builder.getModule();
@@ -58,10 +58,12 @@ int main(int argc, char **argv) {
             output_stream << "source_filename = " << abs_path << "\n\n";
             output_stream << m->print();
         } else if (config.emitasm) {
-            CodeGen codegen(m.get());
+            CodeGen codegen(m);
             codegen.run();
             output_stream << codegen.print();
         }
+
+        delete m;
 
         // TODO: lab4 (IR optimization or codegen)
     }

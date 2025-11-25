@@ -2,6 +2,8 @@
 
 #include <cassert>
 
+User::~User() { remove_all_operands(); }
+
 void User::set_operand(unsigned i, Value *v) {
     assert(i < operands_.size() && "set_operand out of index");
     if (operands_[i]) { // old operand
@@ -15,7 +17,7 @@ void User::set_operand(unsigned i, Value *v) {
 
 void User::add_operand(Value *v) {
     assert(v != nullptr && "bad use: add_operand(nullptr)");
-    v->add_use(this, operands_.size());
+    v->add_use(this, static_cast<unsigned>(operands_.size()));
     operands_.push_back(v);
 }
 

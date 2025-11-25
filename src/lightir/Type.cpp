@@ -3,31 +3,32 @@
 
 #include <array>
 #include <cassert>
-#include <stdexcept>
 
 Type::Type(TypeID tid, Module *m) {
     tid_ = tid;
     m_ = m;
 }
 
+Type::~Type() = default;
+
 bool Type::is_int1_type() const {
     return is_integer_type() and
-           static_cast<const IntegerType *>(this)->get_num_bits() == 1;
+           dynamic_cast<const IntegerType *>(this)->get_num_bits() == 1;
 }
 bool Type::is_int32_type() const {
     return is_integer_type() and
-           static_cast<const IntegerType *>(this)->get_num_bits() == 32;
+           dynamic_cast<const IntegerType *>(this)->get_num_bits() == 32;
 }
 
 Type *Type::get_pointer_element_type() const {
     if (this->is_pointer_type())
-        return static_cast<const PointerType *>(this)->get_element_type();
+        return dynamic_cast<const PointerType *>(this)->get_element_type();
     assert(false and "get_pointer_element_type() called on non-pointer type");
 }
 
 Type *Type::get_array_element_type() const {
     if (this->is_array_type())
-        return static_cast<const ArrayType *>(this)->get_element_type();
+        return dynamic_cast<const ArrayType *>(this)->get_element_type();
     assert(false and "get_array_element_type() called on non-array type");
 }
 
@@ -42,7 +43,7 @@ unsigned Type::get_size() const {
             assert(false && "Type::get_size(): unexpected int type bits");
     }
     case ArrayTyID: {
-        auto array_type = static_cast<const ArrayType *>(this);
+        auto array_type = dynamic_cast<const ArrayType *>(this);
         auto element_size = array_type->get_element_type()->get_size();
         auto num_elements = array_type->get_num_of_elements();
         return element_size * num_elements;
@@ -71,20 +72,20 @@ std::string Type::print() const {
     case IntegerTyID:
         type_ir += "i";
         type_ir += std::to_string(
-            static_cast<const IntegerType *>(this)->get_num_bits());
+	        dynamic_cast<const IntegerType *>(this)->get_num_bits());
         break;
     case FunctionTyID:
         type_ir +=
-            static_cast<const FunctionType *>(this)->get_return_type()->print();
+	        dynamic_cast<const FunctionType *>(this)->get_return_type()->print();
         type_ir += " (";
         for (unsigned i = 0;
-             i < static_cast<const FunctionType *>(this)->get_num_of_args();
+             i < dynamic_cast<const FunctionType *>(this)->get_num_of_args();
              i++) {
             if (i)
                 type_ir += ", ";
-            type_ir += static_cast<const FunctionType *>(this)
-                           ->get_param_type(i)
-                           ->print();
+            type_ir += dynamic_cast<const FunctionType *>(this)
+                       ->get_param_type(i)
+                       ->print();
         }
         type_ir += ")";
         break;
@@ -95,10 +96,10 @@ std::string Type::print() const {
     case ArrayTyID:
         type_ir += "[";
         type_ir += std::to_string(
-            static_cast<const ArrayType *>(this)->get_num_of_elements());
+	        dynamic_cast<const ArrayType *>(this)->get_num_of_elements());
         type_ir += " x ";
         type_ir +=
-            static_cast<const ArrayType *>(this)->get_element_type()->print();
+	        dynamic_cast<const ArrayType *>(this)->get_element_type()->print();
         type_ir += "]";
         break;
     case FloatTyID:
@@ -113,9 +114,11 @@ std::string Type::print() const {
 IntegerType::IntegerType(unsigned num_bits, Module *m)
     : Type(Type::IntegerTyID, m), num_bits_(num_bits) {}
 
+IntegerType::~IntegerType() = default;
+
 unsigned IntegerType::get_num_bits() const { return num_bits_; }
 
-FunctionType::FunctionType(Type *result, std::vector<Type *> params)
+FunctionType::FunctionType(Type *result, const std::vector<Type *>& params)
     : Type(Type::FunctionTyID, nullptr) {
     assert(is_valid_return_type(result) && "Invalid return type for function!");
     result_ = result;
@@ -127,11 +130,13 @@ FunctionType::FunctionType(Type *result, std::vector<Type *> params)
     }
 }
 
-bool FunctionType::is_valid_return_type(Type *ty) {
+FunctionType::~FunctionType() = default;
+
+bool FunctionType::is_valid_return_type(const Type *ty) {
     return ty->is_integer_type() || ty->is_void_type() || ty->is_float_type();
 }
 
-bool FunctionType::is_valid_argument_type(Type *ty) {
+bool FunctionType::is_valid_argument_type(const Type *ty) {
     return ty->is_integer_type() || ty->is_pointer_type() ||
            ty->is_float_type();
 }
@@ -140,7 +145,7 @@ FunctionType *FunctionType::get(Type *result, std::vector<Type *> params) {
     return result->get_module()->get_function_type(result, params);
 }
 
-unsigned FunctionType::get_num_of_args() const { return args_.size(); }
+unsigned FunctionType::get_num_of_args() const { return static_cast<unsigned>(args_.size()); }
 
 Type *FunctionType::get_param_type(unsigned i) const { return args_[i]; }
 
@@ -154,7 +159,9 @@ ArrayType::ArrayType(Type *contained, unsigned num_elements)
     contained_ = contained;
 }
 
-bool ArrayType::is_valid_element_type(Type *ty) {
+ArrayType::~ArrayType() = default;
+
+bool ArrayType::is_valid_element_type(const Type *ty) {
     return ty->is_integer_type() || ty->is_array_type() || ty->is_float_type();
 }
 
@@ -164,7 +171,7 @@ ArrayType *ArrayType::get(Type *contained, unsigned num_elements) {
 
 PointerType::PointerType(Type *contained)
     : Type(Type::PointerTyID, contained->get_module()), contained_(contained) {
-    static const std::array allowed_elem_type = {
+    static constexpr std::array allowed_elem_type = {
         Type::IntegerTyID, Type::FloatTyID, Type::ArrayTyID, Type::PointerTyID};
     auto elem_type_id = contained->get_type_id();
     assert(std::find(allowed_elem_type.begin(), allowed_elem_type.end(),
@@ -172,10 +179,14 @@ PointerType::PointerType(Type *contained)
            "Not allowed type for pointer");
 }
 
+PointerType::~PointerType() = default;
+
 PointerType *PointerType::get(Type *contained) {
     return contained->get_module()->get_pointer_type(contained);
 }
 
 FloatType::FloatType(Module *m) : Type(Type::FloatTyID, m) {}
+
+FloatType::~FloatType() = default;
 
 FloatType *FloatType::get(Module *m) { return m->get_float_type(); }

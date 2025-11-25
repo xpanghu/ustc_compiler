@@ -6,14 +6,18 @@
 
 class User : public Value {
   public:
-    User(Type *ty, const std::string &name = "") : Value(ty, name){};
-    virtual ~User() { remove_all_operands(); }
+	User(const User& other) = delete;
+	User(User&& other) noexcept = delete;
+	User& operator=(const User& other) = delete;
+	User& operator=(User&& other) noexcept = delete;
+	User(Type *ty, const std::string &name = "") : Value(ty, name){}
+    ~User() override;
 
     const std::vector<Value *> &get_operands() const { return operands_; }
-    unsigned get_num_operand() const { return operands_.size(); }
+    unsigned get_num_operand() const { return static_cast<unsigned>(operands_.size()); }
 
     // start from 0
-    Value *get_operand(unsigned i) const { return operands_.at(i); };
+    Value *get_operand(unsigned i) const { return operands_.at(i); }
     // start from 0
     void set_operand(unsigned i, Value *v);
     void add_operand(Value *v);

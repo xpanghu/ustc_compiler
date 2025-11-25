@@ -1,0 +1,38 @@
+{
+	"configurations": [
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Compile & Debug 1.ll",
+			// 要调试的程序
+			"program": "${workspaceFolder}/build/cminusfc",
+			// 命令行参数
+			"args": [
+				"-o",
+				"./build/1.ll",
+				"-emit-llvm",
+				"./build/1.cminus"
+			],
+			// 程序运行的目录
+			"cwd": "${workspaceFolder}",
+			// 程序运行前运行的命令(例如 build)
+      		"preLaunchTask": "make cminusfc"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug 1.ll",
+			// 要调试的程序
+			"program": "${workspaceFolder}/build/cminusfc",
+			// 命令行参数
+			"args": [
+				"-o",
+				"./build/1.ll",
+				"-emit-llvm",
+				"./build/1.cminus"
+			],
+			// 程序运行的目录
+			"cwd": "${workspaceFolder}"
+		}
+	]
+}

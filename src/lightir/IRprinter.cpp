@@ -1,7 +1,9 @@
 #include "IRprinter.hpp"
 #include "Instruction.hpp"
 #include <cassert>
-#include <type_traits>
+#include "Constant.hpp"
+#include "Function.hpp"
+#include "GlobalVariable.hpp"
 
 std::string print_as_op(Value *v, bool print_ty) {
     std::string op_ir;
@@ -10,9 +12,7 @@ std::string print_as_op(Value *v, bool print_ty) {
         op_ir += " ";
     }
 
-    if (dynamic_cast<GlobalVariable *>(v)) {
-        op_ir += "@" + v->get_name();
-    } else if (dynamic_cast<Function *>(v)) {
+    if (dynamic_cast<GlobalVariable *>(v) || dynamic_cast<Function*>(v)) {
         op_ir += "@" + v->get_name();
     } else if (dynamic_cast<Constant *>(v)) {
         op_ir += v->print();
@@ -91,7 +91,8 @@ std::string print_instr_op_name(Instruction::OpID id) {
     assert(false && "Must be bug");
 }
 
-template <class BinInst> std::string print_binary_inst(const BinInst &inst) {
+template <class BinInst>
+static std::string print_binary_inst(const BinInst &inst) {
     std::string instr_ir;
     instr_ir += "%";
     instr_ir += inst.get_name();
@@ -112,7 +113,8 @@ template <class BinInst> std::string print_binary_inst(const BinInst &inst) {
 std::string IBinaryInst::print() { return print_binary_inst(*this); }
 std::string FBinaryInst::print() { return print_binary_inst(*this); }
 
-template <class CMP> std::string print_cmp_inst(const CMP &inst) {
+template <class CMP>
+static std::string print_cmp_inst(const CMP &inst) {
     std::string cmp_type;
     if (inst.is_cmp())
         cmp_type = "icmp";

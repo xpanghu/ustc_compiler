@@ -2,13 +2,9 @@
 
 #include "Function.hpp"
 #include "GlobalVariable.hpp"
-#include "Instruction.hpp"
 #include "Type.hpp"
-#include "Value.hpp"
 
 #include <list>
-#include <llvm/ADT/ilist.h>
-#include <llvm/ADT/ilist_node.h>
 #include <map>
 #include <memory>
 #include <string>
@@ -18,14 +14,18 @@ class Function;
 class Module {
   public:
     Module();
-    ~Module() = default;
+    ~Module();
+    Module(const Module& other) = delete;
+    Module(Module&& other) noexcept = delete;
+    Module& operator=(const Module& other) = delete;
+    Module& operator=(Module&& other) noexcept = delete;
 
-    Type *get_void_type();
-    Type *get_label_type();
-    IntegerType *get_int1_type();
-    IntegerType *get_int32_type();
+    Type *get_void_type() const;
+    Type *get_label_type() const;
+    IntegerType *get_int1_type() const;
+    IntegerType *get_int32_type() const;
     PointerType *get_int32_ptr_type();
-    FloatType *get_float_type();
+    FloatType *get_float_type() const;
     PointerType *get_float_ptr_type();
 
     PointerType *get_pointer_type(Type *contained);
@@ -33,27 +33,27 @@ class Module {
     FunctionType *get_function_type(Type *retty, std::vector<Type *> &args);
 
     void add_function(Function *f);
-    llvm::ilist<Function> &get_functions();
+    std::list<Function*> &get_functions();
     void add_global_variable(GlobalVariable *g);
-    llvm::ilist<GlobalVariable> &get_global_variable();
+    std::list<GlobalVariable*> &get_global_variable();
 
     void set_print_name();
     std::string print();
 
   private:
     // The global variables in the module
-    llvm::ilist<GlobalVariable> global_list_;
+	std::list<GlobalVariable*> global_list_;
     // The functions in the module
-    llvm::ilist<Function> function_list_;
+    std::list<Function*> function_list_;
 
-    std::unique_ptr<IntegerType> int1_ty_;
-    std::unique_ptr<IntegerType> int32_ty_;
-    std::unique_ptr<Type> label_ty_;
-    std::unique_ptr<Type> void_ty_;
-    std::unique_ptr<FloatType> float32_ty_;
-    std::map<Type *, std::unique_ptr<PointerType>> pointer_map_;
-    std::map<std::pair<Type *, int>, std::unique_ptr<ArrayType>> array_map_;
+    IntegerType* int1_ty_;
+    IntegerType* int32_ty_;
+    Type* label_ty_;
+    Type* void_ty_;
+    FloatType* float32_ty_;
+    std::map<Type *, PointerType*> pointer_map_;
+    std::map<std::pair<Type *, int>, ArrayType*> array_map_;
     std::map<std::pair<Type *, std::vector<Type *>>,
-             std::unique_ptr<FunctionType>>
+             FunctionType*>
         function_map_;
 };

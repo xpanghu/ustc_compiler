@@ -1,7 +1,8 @@
 #include "GlobalVariable.hpp"
 #include "IRprinter.hpp"
+#include "Module.hpp"
 
-GlobalVariable::GlobalVariable(std::string name, Module *m, Type *ty,
+GlobalVariable::GlobalVariable(const std::string& name, Module *m, Type *ty,
                                bool is_const, Constant *init)
     : User(ty, name), is_const_(is_const), init_val_(init) {
     m->add_global_variable(this);
@@ -10,7 +11,7 @@ GlobalVariable::GlobalVariable(std::string name, Module *m, Type *ty,
     }
 } // global操作数为initval
 
-GlobalVariable *GlobalVariable::create(std::string name, Module *m, Type *ty,
+GlobalVariable *GlobalVariable::create(const std::string& name, Module *m, Type *ty,
                                        bool is_const,
                                        Constant *init = nullptr) {
     return new GlobalVariable(name, m, PointerType::get(ty), is_const, init);

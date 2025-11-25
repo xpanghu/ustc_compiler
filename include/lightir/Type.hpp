@@ -12,7 +12,12 @@ class FloatType;
 
 class Type {
   public:
-    enum TypeID {
+	Type(const Type& other) = delete;
+	Type(Type&& other) noexcept = delete;
+	Type& operator=(const Type& other) = delete;
+	Type& operator=(Type&& other) noexcept = delete;
+
+	enum TypeID: uint8_t {
         VoidTyID,     // Void
         LabelTyID,    // Labels, e.g., BasicBlock
         IntegerTyID,  // Integers, include 32 bits and 1 bit
@@ -25,11 +30,7 @@ class Type {
     explicit Type(TypeID tid, Module *m);
 
 // 生成 vptr, 使调试时能够显示 IntegerType 等 Type 的信息
-#ifdef DEBUG_BUILD
-    virtual
-#endif
-
-	~Type() = default;
+    virtual ~Type();
 
     TypeID get_type_id() const { return tid_; }
 
@@ -59,7 +60,13 @@ class Type {
 
 class IntegerType : public Type {
   public:
-    explicit IntegerType(unsigned num_bits, Module *m);
+	IntegerType(const IntegerType& other) = delete;
+	IntegerType(IntegerType&& other) noexcept = delete;
+	IntegerType& operator=(const IntegerType& other) = delete;
+	IntegerType& operator=(IntegerType&& other) noexcept = delete;
+
+	explicit IntegerType(unsigned num_bits, Module *m);
+    ~IntegerType() override;
 
     unsigned get_num_bits() const;
 
@@ -69,10 +76,16 @@ class IntegerType : public Type {
 
 class FunctionType : public Type {
   public:
-    FunctionType(Type *result, std::vector<Type *> params);
+	FunctionType(const FunctionType& other) = delete;
+	FunctionType(FunctionType&& other) noexcept = delete;
+	FunctionType& operator=(const FunctionType& other) = delete;
+	FunctionType& operator=(FunctionType&& other) noexcept = delete;
 
-    static bool is_valid_return_type(Type *ty);
-    static bool is_valid_argument_type(Type *ty);
+	FunctionType(Type *result, const std::vector<Type *>& params);
+    ~FunctionType() override;
+
+    static bool is_valid_return_type(const Type *ty);
+    static bool is_valid_argument_type(const Type *ty);
 
     static FunctionType *get(Type *result, std::vector<Type *> params);
 
@@ -90,9 +103,15 @@ class FunctionType : public Type {
 
 class ArrayType : public Type {
   public:
-    ArrayType(Type *contained, unsigned num_elements);
+	ArrayType(const ArrayType& other) = delete;
+	ArrayType(ArrayType&& other) noexcept = delete;
+	ArrayType& operator=(const ArrayType& other) = delete;
+	ArrayType& operator=(ArrayType&& other) noexcept = delete;
 
-    static bool is_valid_element_type(Type *ty);
+	ArrayType(Type *contained, unsigned num_elements);
+    ~ArrayType() override;
+
+    static bool is_valid_element_type(const Type *ty);
 
     static ArrayType *get(Type *contained, unsigned num_elements);
 
@@ -106,7 +125,13 @@ class ArrayType : public Type {
 
 class PointerType : public Type {
   public:
-    PointerType(Type *contained);
+	PointerType(const PointerType& other) = delete;
+	PointerType(PointerType&& other) noexcept = delete;
+	PointerType& operator=(const PointerType& other) = delete;
+	PointerType& operator=(PointerType&& other) noexcept = delete;
+
+	PointerType(Type *contained);
+    ~PointerType() override;
     Type *get_element_type() const { return contained_; }
 
     static PointerType *get(Type *contained);
@@ -117,8 +142,12 @@ class PointerType : public Type {
 
 class FloatType : public Type {
   public:
-    FloatType(Module *m);
-    static FloatType *get(Module *m);
+	FloatType(const FloatType& other) = delete;
+	FloatType(FloatType&& other) noexcept = delete;
+	FloatType& operator=(const FloatType& other) = delete;
+	FloatType& operator=(FloatType&& other) noexcept = delete;
 
-  private:
+	FloatType(Module *m);
+    ~FloatType() override;
+    static FloatType *get(Module *m);
 };

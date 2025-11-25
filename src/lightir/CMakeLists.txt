@@ -14,5 +14,4 @@ add_library(
 
 target_link_libraries(
     IR_lib
-    LLVMSupport
 )

@@ -15,16 +15,16 @@ void CodeGen::allocate() {
 
     // 为指令结果分配栈空间
     for (auto bb : context.func->get_basic_blocks()) {
-        for (auto& instr : bb->get_instructions()) {
+        for (auto instr : bb->get_instructions()) {
             // 每个非 void 的定值都分配栈空间
-            if (not instr.is_void()) {
-                auto size = instr.get_type()->get_size();
+            if (not instr->is_void()) {
+                auto size = instr->get_type()->get_size();
                 offset = offset + size;
-                context.offset_map[&instr] = -static_cast<int>(offset);
+                context.offset_map[instr] = -static_cast<int>(offset);
             }
             // alloca 的副作用：分配额外空间
-            if (instr.is_alloca()) {
-                auto *alloca_inst = static_cast<AllocaInst *>(&instr);
+            if (instr->is_alloca()) {
+                auto *alloca_inst = dynamic_cast<AllocaInst *>(instr);
                 auto alloc_size = alloca_inst->get_alloca_type()->get_size();
                 offset += alloc_size;
             }
@@ -36,20 +36,20 @@ void CodeGen::allocate() {
 }
 
 void CodeGen::copy_stmt() {
-    for (auto &succ : context.bb->get_succ_basic_blocks()) {
-        for (auto &inst : succ->get_instructions()) {
-            if (inst.is_phi()) {
+    for (auto succ : context.bb->get_succ_basic_blocks()) {
+        for (auto inst : succ->get_instructions()) {
+            if (inst->is_phi()) {
                 // 遍历后继块中 phi 的定值 bb
-                for (unsigned i = 1; i < inst.get_operands().size(); i += 2) {
+                for (unsigned i = 1; i < inst->get_operands().size(); i += 2) {
                     // phi 的定值 bb 是当前翻译块
-                    if (inst.get_operand(i) == context.bb) {
-                        auto *lvalue = inst.get_operand(i - 1);
+                    if (inst->get_operand(i) == context.bb) {
+                        auto *lvalue = inst->get_operand(i - 1);
                         if (lvalue->get_type()->is_float_type()) {
                             load_to_freg(lvalue, FReg::fa(0));
-                            store_from_freg(&inst, FReg::fa(0));
+                            store_from_freg(inst, FReg::fa(0));
                         } else {
                             load_to_greg(lvalue, Reg::a(0));
-                            store_from_greg(&inst, Reg::a(0));
+                            store_from_greg(inst, Reg::a(0));
                         }
                         break;
                     }
@@ -373,16 +373,16 @@ void CodeGen::run() {
         append_inst(".text", ASMInstruction::Atrribute);
         append_inst(".section", {".bss", "\"aw\"", "@nobits"},
                     ASMInstruction::Atrribute);
-        for (auto &global : m->get_global_variable()) {
+        for (auto global : m->get_global_variable()) {
             auto size =
-                global.get_type()->get_pointer_element_type()->get_size();
-            append_inst(".globl", {global.get_name()},
+                global->get_type()->get_pointer_element_type()->get_size();
+            append_inst(".globl", {global->get_name()},
                         ASMInstruction::Atrribute);
-            append_inst(".type", {global.get_name(), "@object"},
+            append_inst(".type", {global->get_name(), "@object"},
                         ASMInstruction::Atrribute);
-            append_inst(".size", {global.get_name(), std::to_string(size)},
+            append_inst(".size", {global->get_name(), std::to_string(size)},
                         ASMInstruction::Atrribute);
-            append_inst(global.get_name(), ASMInstruction::Label);
+            append_inst(global->get_name(), ASMInstruction::Label);
             append_inst(".space", {std::to_string(size)},
                         ASMInstruction::Atrribute);
         }
@@ -390,31 +390,31 @@ void CodeGen::run() {
 
     // 函数代码段
     output.emplace_back(".text", ASMInstruction::Atrribute);
-    for (auto &func : m->get_functions()) {
-        if (not func.is_declaration()) {
+    for (auto func : m->get_functions()) {
+        if (not func->is_declaration()) {
             // 更新 context
             context.clear();
-            context.func = &func;
+            context.func = func;
 
             // 函数信息
-            append_inst(".globl", {func.get_name()}, ASMInstruction::Atrribute);
-            append_inst(".type", {func.get_name(), "@function"},
+            append_inst(".globl", {func->get_name()}, ASMInstruction::Atrribute);
+            append_inst(".type", {func->get_name(), "@function"},
                         ASMInstruction::Atrribute);
-            append_inst(func.get_name(), ASMInstruction::Label);
+            append_inst(func->get_name(), ASMInstruction::Label);
 
             // 分配函数栈帧
             allocate();
             // 生成 prologue
             gen_prologue();
 
-            for (auto bb : func.get_basic_blocks()) {
+            for (auto bb : func->get_basic_blocks()) {
                 context.bb = bb;
                 append_inst(label_name(context.bb), ASMInstruction::Label);
-                for (auto &instr : bb->get_instructions()) {
+                for (auto instr : bb->get_instructions()) {
                     // For debug
-                    append_inst(instr.print(), ASMInstruction::Comment);
-                    context.inst = &instr; // 更新 context
-                    switch (instr.get_instr_type()) {
+                    append_inst(instr->print(), ASMInstruction::Comment);
+                    context.inst = instr; // 更新 context
+                    switch (instr->get_instr_type()) {
                     case Instruction::ret:
                         gen_ret();
                         break;

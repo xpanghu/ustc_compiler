@@ -29,14 +29,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(FLEX REQUIRED)
 find_package(BISON REQUIRED)
-find_package(LLVM REQUIRED CONFIG)
-message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-llvm_map_components_to_libnames(
-    llvm_libs
-    support
-    core
-)
 
 INCLUDE_DIRECTORIES(
     include
@@ -44,10 +36,7 @@ INCLUDE_DIRECTORIES(
     include/common
     include/lightir
     include/codegen
-    ${LLVM_INCLUDE_DIRS}
 )
-
-add_definitions(${LLVM_DEFINITIONS})
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})

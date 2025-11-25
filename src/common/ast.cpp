@@ -396,11 +396,13 @@ Value* ASTCall::accept(ASTVisitor &visitor) { return visitor.visit(*this); }
 #define _DEBUG_PRINT_N_(N)                                                     \
     { std::cout << std::string(N, '-'); }
 
+ASTVisitor::~ASTVisitor() = default;
+
 Value* ASTPrinter::visit(ASTProgram &node) {
     _DEBUG_PRINT_N_(depth);
     std::cout << "program" << std::endl;
     add_depth();
-    for (auto decl : node.declarations) {
+    for (auto &decl : node.declarations) {
         decl->accept(*this);
     }
     remove_depth();
@@ -437,7 +439,7 @@ Value* ASTPrinter::visit(ASTFunDeclaration &node) {
     _DEBUG_PRINT_N_(depth);
     std::cout << "fun-declaration: " << node.id << std::endl;
     add_depth();
-    for (auto param : node.params) {
+    for (auto &param : node.params) {
         param->accept(*this);
     }
 
@@ -459,11 +461,11 @@ Value* ASTPrinter::visit(ASTCompoundStmt &node) {
     _DEBUG_PRINT_N_(depth);
     std::cout << "compound-stmt" << std::endl;
     add_depth();
-    for (auto decl : node.local_declarations) {
+    for (auto &decl : node.local_declarations) {
         decl->accept(*this);
     }
 
-    for (auto stmt : node.statement_list) {
+    for (auto &stmt : node.statement_list) {
         stmt->accept(*this);
     }
     remove_depth();
@@ -625,7 +627,7 @@ Value* ASTPrinter::visit(ASTCall &node) {
     _DEBUG_PRINT_N_(depth);
     std::cout << "call: " << node.id << "()" << std::endl;
     add_depth();
-    for (auto arg : node.args) {
+    for (auto &arg : node.args) {
         arg->accept(*this);
     }
     remove_depth();

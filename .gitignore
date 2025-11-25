@@ -1,2 +1,6 @@
 build/
 .cache/
+.vs
+out
+CMakePresets.json
+Folder.DotSettings.user

@@ -13,14 +13,14 @@ BasicBlock::BasicBlock(Module *m, const std::string &name = "",
     parent_->add_basic_block(this);
 }
 
-Module *BasicBlock::get_module() { return get_parent()->get_parent(); }
+Module *BasicBlock::get_module() const { return get_parent()->get_parent(); }
 void BasicBlock::erase_from_parent() { this->get_parent()->remove(this); }
 
 bool BasicBlock::is_terminated() const {
     if (instr_list_.empty()) {
         return false;
     }
-    switch (instr_list_.back().get_instr_type()) {
+    switch (instr_list_.back()->get_instr_type()) {
     case Instruction::ret:
     case Instruction::br:
         return true;
@@ -29,15 +29,47 @@ bool BasicBlock::is_terminated() const {
     }
 }
 
-Instruction *BasicBlock::get_terminator() {
+Instruction *BasicBlock::get_terminator() const
+{
     assert(is_terminated() &&
            "Trying to get terminator from an bb which is not terminated");
-    return &instr_list_.back();
+    return instr_list_.back();
 }
 
 void BasicBlock::add_instruction(Instruction *instr) {
+    if (instr->is_alloca() || instr->is_phi())
+    {
+        auto it = instr_list_.begin();
+        for (;  it != instr_list_.end() && ((*it)->is_alloca() || (*it)->is_phi()); ++it){}
+        instr_list_.emplace(it, instr);
+    	return;
+    }
     assert(not is_terminated() && "Inserting instruction to terminated bb");
     instr_list_.push_back(instr);
+}
+
+void BasicBlock::add_instr_begin(Instruction* instr)
+{
+    if (instr->is_alloca() || instr->is_phi())
+		instr_list_.push_front(instr);
+    else
+    {
+        auto it = instr_list_.begin();
+        for (; it != instr_list_.end() && ((*it)->is_alloca() || (*it)->is_phi()); ++it) {}
+        instr_list_.emplace(it, instr);
+    }
+}
+
+void BasicBlock::add_instr_before_terminator(Instruction* instr) {
+    if (instr->is_alloca() || instr->is_phi())
+    {
+        auto it = instr_list_.begin();
+        for (; it != instr_list_.end() && ((*it)->is_alloca() || (*it)->is_phi()); ++it) {}
+        instr_list_.emplace(it, instr);
+        return;
+    }
+    if (!is_terminated()) instr_list_.emplace_back(instr);
+    else instr_list_.insert(std::prev(instr_list_.end()), instr);
 }
 
 std::string BasicBlock::print() {
@@ -61,16 +93,22 @@ std::string BasicBlock::print() {
         bb_ir += "; Error: Block without parent!";
     }
     bb_ir += "\n";
-    for (auto &instr : this->get_instructions()) {
+    for (auto instr : this->get_instructions()) {
         bb_ir += "  ";
-        bb_ir += instr.print();
+        bb_ir += instr->print();
         bb_ir += "\n";
     }
 
     return bb_ir;
 }
 
-BasicBlock* BasicBlock::get_entry_block_of_same_function(){
-	assert((not (parent_ == nullptr)) && "bb have no parent function");
+BasicBlock::~BasicBlock()
+{
+    for (auto inst : instr_list_) delete inst;
+}
+
+BasicBlock* BasicBlock::get_entry_block_of_same_function() const
+{
+	assert(parent_ != nullptr && "bb have no parent function");
 	return parent_->get_entry_block();
 }

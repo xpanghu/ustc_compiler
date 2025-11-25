@@ -2,15 +2,9 @@
 
 #include "BasicBlock.hpp"
 #include "Type.hpp"
-#include "User.hpp"
 
 #include <cassert>
-#include <cstddef>
-#include <iterator>
 #include <list>
-#include <llvm/ADT/ilist.h>
-#include <llvm/ADT/ilist_node.h>
-#include <map>
 #include <memory>
 
 class Module;
@@ -18,11 +12,14 @@ class Argument;
 class Type;
 class FunctionType;
 
-class Function : public Value, public llvm::ilist_node<Function> {
+class Function : public Value {
   public:
-    Function(const Function &) = delete;
+	Function(const Function& other) = delete;
+	Function(Function&& other) noexcept = delete;
+	Function& operator=(const Function& other) = delete;
+	Function& operator=(Function&& other) noexcept = delete;
     Function(FunctionType *ty, const std::string &name, Module *parent);
-    ~Function() = default;
+    ~Function() override;
     static Function *create(FunctionType *ty, const std::string &name,
                             Module *parent);
 
@@ -38,17 +35,17 @@ class Function : public Value, public llvm::ilist_node<Function> {
 
 	// 此处 remove 的 BasicBlock, 需要手动 delete
     void remove(BasicBlock *bb);
-    BasicBlock *get_entry_block() { return basic_blocks_.front(); }
+    BasicBlock *get_entry_block() const { return basic_blocks_.front(); }
 
     std::list<BasicBlock*> &get_basic_blocks() { return basic_blocks_; }
     std::list<Argument> &get_args() { return arguments_; }
 
-    bool is_declaration() { return basic_blocks_.empty(); }
+    bool is_declaration() const { return basic_blocks_.empty(); }
 
     void set_instr_name();
-    std::string print();
+    std::string print() override;
 	// 用于检查函数的基本块是否存在问题
-    void check_for_block_relation_error();
+    void check_for_block_relation_error() const;
 
   private:
     std::list<BasicBlock*> basic_blocks_;
@@ -60,14 +57,17 @@ class Function : public Value, public llvm::ilist_node<Function> {
 // Argument of Function, does not contain actual value
 class Argument : public Value {
   public:
-    Argument(const Argument &) = delete;
+	Argument(const Argument& other) = delete;
+	Argument(Argument&& other) noexcept = delete;
+	Argument& operator=(const Argument& other) = delete;
+	Argument& operator=(Argument&& other) noexcept = delete;
     explicit Argument(Type *ty, const std::string &name = "",
                       Function *f = nullptr, unsigned arg_no = 0)
         : Value(ty, name), parent_(f), arg_no_(arg_no) {}
-    virtual ~Argument() {}
+	~Argument() override = default;
 
-    inline const Function *get_parent() const { return parent_; }
-    inline Function *get_parent() { return parent_; }
+	const Function *get_parent() const { return parent_; }
+	Function *get_parent() { return parent_; }
 
     /// For example in "void foo(int a, float b)" a is 0 and b is 1.
     unsigned get_arg_no() const {
@@ -75,7 +75,7 @@ class Argument : public Value {
         return arg_no_;
     }
 
-    virtual std::string print() override;
+	std::string print() override;
 
   private:
     Function *parent_;
