@@ -1,5 +1,6 @@
 #include "Value.hpp"
 #include "User.hpp"
+#include "util.hpp"
 
 
 Value::~Value() { replace_all_use_with(nullptr); }
@@ -41,4 +42,10 @@ void Value::replace_use_with_if(Value *new_val,
             continue;
         use.val_->set_operand(use.arg_no_, new_val);
     }
+}
+
+std::string Value::safe_get_name_or_ptr() const
+{
+    if (name_.empty()) return ptr_to_str(this);
+    return name_;
 }

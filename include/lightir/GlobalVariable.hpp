@@ -12,6 +12,8 @@ class GlobalVariable : public User {
     GlobalVariable(const std::string& name, Module *m, Type *ty, bool is_const,
                    Constant *init = nullptr);
 
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
   public:
     GlobalVariable(const GlobalVariable& other) = delete;
     GlobalVariable(GlobalVariable&& other) noexcept = delete;

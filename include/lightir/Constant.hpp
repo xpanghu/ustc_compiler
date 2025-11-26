@@ -15,6 +15,11 @@ public:
 
     Constant(Type *ty, const std::string &name = "") : User(ty, name) {}
     ~Constant() override;
+
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
+    // 用于 lldb 调试生成 summary
+    std::string safe_print_help() const;
 protected:
 };
 
@@ -51,7 +56,7 @@ class ConstantArray : public Constant {
     static ConstantArray *get(ArrayType *ty,
                               const std::vector<Constant *> &val);
 
-    std::string print() override;
+	std::string print() override;
 };
 
 class ConstantZero : public Constant {

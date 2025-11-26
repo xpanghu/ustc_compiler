@@ -111,23 +111,14 @@ class Instruction : public User {
 
     bool isTerminator() const { return is_br() || is_ret(); }
 
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
   private:
     OpID op_id_;
     BasicBlock *parent_;
 };
 
-template <typename Inst> class BaseInst : public Instruction {
-  protected:
-    template <typename... Args> static Inst *create(Args &&...args) {
-        return new Inst(std::forward<Args>(args)...);
-    }
-
-    template <typename... Args>
-    BaseInst(Args &&...args) : Instruction(std::forward<Args>(args)...) {}
-};
-
-class IBinaryInst : public BaseInst<IBinaryInst> {
-    friend BaseInst<IBinaryInst>;
+class IBinaryInst : public Instruction {
 
   private:
     IBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb);
@@ -141,8 +132,7 @@ class IBinaryInst : public BaseInst<IBinaryInst> {
     std::string print() override;
 };
 
-class FBinaryInst : public BaseInst<FBinaryInst> {
-    friend BaseInst<FBinaryInst>;
+class FBinaryInst : public Instruction {
 
   private:
     FBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb);
@@ -156,13 +146,13 @@ class FBinaryInst : public BaseInst<FBinaryInst> {
     std::string print() override;
 };
 
-class ICmpInst : public BaseInst<ICmpInst> {
-    friend BaseInst<ICmpInst>;
+class ICmpInst : public Instruction {
 
   private:
     ICmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb);
 
   public:
+
     static ICmpInst *create_ge(Value *v1, Value *v2, BasicBlock *bb);
     static ICmpInst *create_gt(Value *v1, Value *v2, BasicBlock *bb);
     static ICmpInst *create_le(Value *v1, Value *v2, BasicBlock *bb);
@@ -173,8 +163,7 @@ class ICmpInst : public BaseInst<ICmpInst> {
     std::string print() override;
 };
 
-class FCmpInst : public BaseInst<FCmpInst> {
-    friend BaseInst<FCmpInst>;
+class FCmpInst : public Instruction {
 
   private:
     FCmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb);
@@ -190,8 +179,7 @@ class FCmpInst : public BaseInst<FCmpInst> {
     std::string print() override;
 };
 
-class CallInst : public BaseInst<CallInst> {
-    friend BaseInst<CallInst>;
+class CallInst : public Instruction {
 
   protected:
     CallInst(Function *func, const std::vector<Value *>& args, BasicBlock *bb);
@@ -204,15 +192,14 @@ class CallInst : public BaseInst<CallInst> {
     std::string print() override;
 };
 
-class BranchInst : public BaseInst<BranchInst> {
-    friend BaseInst<BranchInst>;
+class BranchInst : public Instruction {
 
   private:
     BranchInst(Value *cond, BasicBlock *if_true, BasicBlock *if_false,
                BasicBlock *bb);
-    ~BranchInst() override;
 
 public:
+    ~BranchInst() override;
     BranchInst(const BranchInst& other) = delete;
     BranchInst(BranchInst&& other) noexcept = delete;
     BranchInst& operator=(const BranchInst& other) = delete;
@@ -229,8 +216,7 @@ public:
     std::string print() override;
 };
 
-class ReturnInst : public BaseInst<ReturnInst> {
-    friend BaseInst<ReturnInst>;
+class ReturnInst : public Instruction {
 
   private:
     ReturnInst(Value *val, BasicBlock *bb);
@@ -243,8 +229,7 @@ class ReturnInst : public BaseInst<ReturnInst> {
     std::string print() override;
 };
 
-class GetElementPtrInst : public BaseInst<GetElementPtrInst> {
-    friend BaseInst<GetElementPtrInst>;
+class GetElementPtrInst : public Instruction {
 
   private:
     GetElementPtrInst(Value *ptr, const std::vector<Value *>& idxs, BasicBlock *bb);
@@ -258,8 +243,7 @@ class GetElementPtrInst : public BaseInst<GetElementPtrInst> {
     std::string print() override;
 };
 
-class StoreInst : public BaseInst<StoreInst> {
-    friend BaseInst<StoreInst>;
+class StoreInst : public Instruction {
 
     StoreInst(Value *val, Value *ptr, BasicBlock *bb);
 
@@ -272,8 +256,7 @@ class StoreInst : public BaseInst<StoreInst> {
     std::string print() override;
 };
 
-class LoadInst : public BaseInst<LoadInst> {
-    friend BaseInst<LoadInst>;
+class LoadInst : public Instruction {
 
     LoadInst(Value *ptr, BasicBlock *bb);
 
@@ -286,8 +269,7 @@ class LoadInst : public BaseInst<LoadInst> {
     std::string print() override;
 };
 
-class AllocaInst : public BaseInst<AllocaInst> {
-    friend BaseInst<AllocaInst>;
+class AllocaInst : public Instruction {
 
     AllocaInst(Type *ty, BasicBlock *bb);
 
@@ -302,8 +284,7 @@ class AllocaInst : public BaseInst<AllocaInst> {
     std::string print() override;
 };
 
-class ZextInst : public BaseInst<ZextInst> {
-    friend BaseInst<ZextInst>;
+class ZextInst : public Instruction {
 
   private:
     ZextInst(Value *val, Type *ty, BasicBlock *bb);
@@ -317,8 +298,7 @@ class ZextInst : public BaseInst<ZextInst> {
     std::string print() override;
 };
 
-class FpToSiInst : public BaseInst<FpToSiInst> {
-    friend BaseInst<FpToSiInst>;
+class FpToSiInst : public Instruction {
 
   private:
     FpToSiInst(Value *val, Type *ty, BasicBlock *bb);
@@ -332,8 +312,7 @@ class FpToSiInst : public BaseInst<FpToSiInst> {
     std::string print() override;
 };
 
-class SiToFpInst : public BaseInst<SiToFpInst> {
-    friend BaseInst<SiToFpInst>;
+class SiToFpInst : public Instruction {
 
   private:
     SiToFpInst(Value *val, Type *ty, BasicBlock *bb);
@@ -346,15 +325,14 @@ class SiToFpInst : public BaseInst<SiToFpInst> {
     std::string print() override;
 };
 
-class PhiInst : public BaseInst<PhiInst> {
-    friend BaseInst<PhiInst>;
+class PhiInst : public Instruction {
 
   private:
     PhiInst(Type *ty, const std::vector<Value *>& vals,
             const std::vector<BasicBlock *>& val_bbs, BasicBlock *bb);
 
   public:
-	// 新特性：指令表分为 {alloca, phi | other inst} 两段，创建和向基本块插入 alloca 和 phi，都只会插在第一段，它们在常规指令前面
+    // 新特性：指令表分为 {alloca, phi | other inst} 两段，创建和向基本块插入 alloca 和 phi，都只会插在第一段，它们在常规指令前面
     static PhiInst *create_phi(Type *ty, BasicBlock *bb,
                                const std::vector<Value *>& vals = {},
                                const std::vector<BasicBlock *>& val_bbs = {});

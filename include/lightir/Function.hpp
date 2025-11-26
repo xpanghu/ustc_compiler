@@ -47,6 +47,8 @@ class Function : public Value {
 	// 用于检查函数的基本块是否存在问题
     void check_for_block_relation_error() const;
 
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
   private:
     std::list<BasicBlock*> basic_blocks_;
     std::list<Argument> arguments_;
@@ -76,6 +78,9 @@ class Argument : public Value {
     }
 
 	std::string print() override;
+
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
 
   private:
     Function *parent_;

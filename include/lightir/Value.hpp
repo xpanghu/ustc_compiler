@@ -57,6 +57,8 @@ class Value {
         return dynamic_cast<const T*>(this);
     }
 
+    // 用于 lldb 调试生成 summary
+    std::string safe_get_name_or_ptr() const;
   private:
     Type *type_;
     std::list<Use> use_list_; // who use this value

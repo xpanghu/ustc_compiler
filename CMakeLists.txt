@@ -1,4 +1,6 @@
 cmake_minimum_required( VERSION 3.8 )
+include(CheckCXXCompilerFlag)
+
 project(CMINUSF)
 
 set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -std=c99")
@@ -8,6 +10,20 @@ SET(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O3 -Wall")
 SET(CMAKE_CXX_FLAGS_ASAN "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=undefined -fsanitize=address")
 
 set(default_build_type "Debug")
+
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    	check_cxx_compiler_flag("-fstandalone-debug" CXX_SUPPORTS_STANDALONE_DEBUG)
+    	if(CXX_SUPPORTS_STANDALONE_DEBUG)
+        	message(STATUS "Adding -fstandalone-debug for Clang")
+        	set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fstandalone-debug")
+    	else()
+        	message(STATUS "Clang does not support -fstandalone-debug, skipping")
+    	endif()
+	else()
+		message(STATUS "Use Gcc")
+	endif()
+endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_definitions(-DDEBUG_BUILD)

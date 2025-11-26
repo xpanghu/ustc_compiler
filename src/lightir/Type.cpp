@@ -111,6 +111,52 @@ std::string Type::print() const {
     return type_ir;
 }
 
+std::string Type::safe_print() const
+{
+    switch (this->get_type_id()) {
+    case VoidTyID:
+        return "void";
+    case LabelTyID:
+        return "label";
+    case IntegerTyID:
+	    {
+		    auto ty = dynamic_cast<const IntegerType*>(this);
+            if (ty == nullptr) return "<not IntegerType>";
+    		return "i" + std::to_string(ty->get_num_bits());
+	    }
+    case FunctionTyID:
+	    {
+			auto ty = dynamic_cast<const FunctionType*>(this);
+			if (ty == nullptr) return "<not FunctionType>";
+            auto ty2 = ty->get_return_type();
+            std::string type_ir = (ty2 == nullptr ? "<null>" : ty2->safe_print()) + " (";
+			for (unsigned i = 0; i < ty->get_num_of_args(); i++) {
+				if (i) type_ir += ", ";
+                ty2 = ty->get_param_type(i);
+				type_ir += (ty2 == nullptr ? "<null>" : ty2->safe_print());
+			}
+            return type_ir + ")";
+	    }
+    case PointerTyID:
+	    {
+			auto ty = dynamic_cast<const PointerType*>(this);
+            if (ty == nullptr) return "<not PointerType>";
+            auto ty2 = ty->get_element_type();
+            return (ty2 == nullptr ? "<null>" : ty2->safe_print()) + "*";
+	    }
+    case ArrayTyID:
+	    {
+			auto ty = dynamic_cast<const ArrayType*>(this);
+            if (ty == nullptr) return "<not ArrayType>";
+            auto ty2 = ty->get_element_type();
+            return "[" + std::to_string(ty->get_num_of_elements()) + "x" + (ty2 == nullptr ? "<null>" : ty2->safe_print()) + "]";
+	    }
+    case FloatTyID:
+        return "float";
+    }
+    return "<error>";
+}
+
 IntegerType::IntegerType(unsigned num_bits, Module *m)
     : Type(Type::IntegerTyID, m), num_bits_(num_bits)
 {

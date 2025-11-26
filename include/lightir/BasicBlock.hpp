@@ -79,6 +79,8 @@ class BasicBlock : public Value {
 
 	std::string print() override;
 
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
   private:
     explicit BasicBlock(Module *m, const std::string &name, Function *parent);
 

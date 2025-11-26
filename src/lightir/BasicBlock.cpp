@@ -3,6 +3,7 @@
 #include "Function.hpp"
 #include "IRprinter.hpp"
 #include "Module.hpp"
+#include "util.hpp"
 
 #include <cassert>
 
@@ -100,6 +101,16 @@ std::string BasicBlock::print() {
     }
 
     return bb_ir;
+}
+
+std::string BasicBlock::safe_print() const
+{
+    Function* parent = parent_;
+    auto parentName = ((parent != nullptr) ? parent->get_name() : "f<null>");
+    auto name = get_name();
+    if (name.empty()) name = "b" + ptr_to_str(this);
+    if (parentName.empty()) parentName = "f" + ptr_to_str(parent);
+    return parentName + ":" + name + " " + std::to_string(instr_list_.size()) + "inst pre " + std::to_string(pre_bbs_.size()) + "b suc " + std::to_string(succ_bbs_.size()) + "b";
 }
 
 BasicBlock::~BasicBlock()

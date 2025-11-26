@@ -11,6 +11,18 @@ GlobalVariable::GlobalVariable(const std::string& name, Module *m, Type *ty,
     }
 } // global操作数为initval
 
+std::string GlobalVariable::safe_print() const
+{
+    std::string ret;
+    if (is_const_) ret += "const ";
+    auto ty = get_type();
+    if (ty == nullptr) ret += "<null> ";
+    else ret += ty->safe_print() + " ";
+    ret += get_name();
+    if (init_val_ != nullptr) ret += " " + init_val_->safe_print_help();
+    return ret;
+}
+
 GlobalVariable *GlobalVariable::create(const std::string& name, Module *m, Type *ty,
                                        bool is_const,
                                        Constant *init = nullptr) {

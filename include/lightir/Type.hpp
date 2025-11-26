@@ -53,6 +53,9 @@ class Type {
 
     std::string print() const;
 
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
+
   private:
     TypeID tid_;
     Module *m_;

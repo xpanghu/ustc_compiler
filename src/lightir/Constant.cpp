@@ -31,6 +31,53 @@ static std::unordered_map<Type *, std::unique_ptr<ConstantZero>> cached_zero;
 
 Constant::~Constant() = default;
 
+std::string Constant::safe_print() const
+{
+    Type* ty = this->get_type();
+    return (ty == nullptr ? "<null>" : get_type()->safe_print()) + " " + safe_print_help();
+}
+
+std::string Constant::safe_print_help() const
+{
+    if (dynamic_cast<const ConstantZero*>(this))
+    {
+        return "zeroinitializer";
+    }
+    if (auto constant = dynamic_cast<const ConstantInt*>(this))
+    {
+        Type* ty = this->get_type();
+        if (ty != nullptr && ty->is_int1_type()) {
+            return constant->get_value() == 0 ? "false" : "true";
+        }
+        return std::to_string(constant->get_value());
+    }
+    if (auto constant = dynamic_cast<const ConstantFP*>(this))
+    {
+        std::stringstream fp_ir_ss;
+        std::string fp_ir;
+        double val = constant->get_value();
+        uint64_t uval;
+        memcpy(&uval, &val, sizeof(double));
+        fp_ir_ss << "0x" << std::hex << uval << '\n';
+        fp_ir_ss >> fp_ir;
+        return std::to_string(val) + "(" + fp_ir + ")";
+    }
+    if (auto constant = dynamic_cast<const ConstantArray*>(this))
+    {
+        std::string const_ir = "[";
+        for (int i = 0; i < constant->get_size_of_array(); i++) {
+            Constant* element = constant->get_element_value(i);
+            const_ir += (element == nullptr ? "<null>" : element->safe_print_help());
+            if (i < constant->get_size_of_array()) {
+                const_ir += ", ";
+            }
+        }
+        const_ir += "]";
+        return const_ir;
+    }
+    return "<error>";
+}
+
 ConstantInt *ConstantInt::get(int val, Module *m) {
     if (cached_int.find(std::make_pair(val, m)) != cached_int.end())
         return cached_int[std::make_pair(val, m)].get();
@@ -51,7 +98,7 @@ std::string ConstantInt::print() {
     std::string const_ir;
     Type *ty = this->get_type();
     if (ty->is_integer_type() &&
-        static_cast<IntegerType *>(ty)->get_num_bits() == 1) {
+        dynamic_cast<IntegerType *>(ty)->get_num_bits() == 1) {
         // int1
         const_ir += (this->get_value() == 0) ? "false" : "true";
     } else {

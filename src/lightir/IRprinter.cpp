@@ -23,6 +23,127 @@ std::string print_as_op(Value *v, bool print_ty) {
     return op_ir;
 }
 
+static std::string safe_print_op_as_op(const Instruction* v, unsigned idx, bool print_ty) {
+    if (v->get_num_operand() <= idx) return  "op<unknown>";
+    Value* val = v->get_operand(idx);
+    if (val == nullptr) return "op<null>";
+    std::string op_ir;
+    if (print_ty) {
+        auto ty = val->get_type();
+        if (ty == nullptr) op_ir += "t<null> ";
+        else
+        {
+            op_ir += ty->safe_print();
+            op_ir += " ";
+        }
+    }
+
+    if (dynamic_cast<GlobalVariable*>(val) || dynamic_cast<Function*>(val)) {
+        op_ir += "@" + val->safe_get_name_or_ptr();
+    }
+    else if (auto constant = dynamic_cast<Constant*>(val)) {
+        op_ir += constant->safe_print_help();
+    }
+    else {
+        op_ir += "%" + val->safe_get_name_or_ptr();
+    }
+
+    return op_ir;
+}
+
+static std::string safe_print_as_op(const Value* v, bool print_ty) {
+    std::string op_ir;
+    if (print_ty) {
+        auto ty = v->get_type();
+        if (ty == nullptr) op_ir += "t<null> ";
+        else
+        {
+            op_ir += ty->safe_print();
+            op_ir += " ";
+        }
+    }
+
+    if (dynamic_cast<const GlobalVariable*>(v) || dynamic_cast<const Function*>(v)) {
+        op_ir += "@" + v->safe_get_name_or_ptr();
+    }
+    else if (auto constant = dynamic_cast<const Constant*>(v)) {
+        op_ir += constant->safe_print_help();
+    }
+    else {
+        op_ir += "%" + v->safe_get_name_or_ptr();
+    }
+
+    return op_ir;
+}
+
+static const char* safe_print_instr_op_name(Instruction::OpID id) {
+    switch (id) {
+    case Instruction::ret:
+        return "ret";
+    case Instruction::br:
+        return "br";
+    case Instruction::add:
+        return "add";
+    case Instruction::sub:
+        return "sub";
+    case Instruction::mul:
+        return "mul";
+    case Instruction::sdiv:
+        return "sdiv";
+    case Instruction::fadd:
+        return "fadd";
+    case Instruction::fsub:
+        return "fsub";
+    case Instruction::fmul:
+        return "fmul";
+    case Instruction::fdiv:
+        return "fdiv";
+    case Instruction::alloca:
+        return "alloca";
+    case Instruction::load:
+        return "load";
+    case Instruction::store:
+        return "store";
+    case Instruction::ge:
+        return "sge";
+    case Instruction::gt:
+        return "sgt";
+    case Instruction::le:
+        return "sle";
+    case Instruction::lt:
+        return "slt";
+    case Instruction::eq:
+        return "eq";
+    case Instruction::ne:
+        return "ne";
+    case Instruction::fge:
+        return "uge";
+    case Instruction::fgt:
+        return "ugt";
+    case Instruction::fle:
+        return "ule";
+    case Instruction::flt:
+        return "ult";
+    case Instruction::feq:
+        return "ueq";
+    case Instruction::fne:
+        return "une";
+    case Instruction::phi:
+        return "phi";
+    case Instruction::call:
+        return "call";
+    case Instruction::getelementptr:
+        return "getelementptr";
+    case Instruction::zext:
+        return "zext";
+    case Instruction::fptosi:
+        return "fptosi";
+    case Instruction::sitofp:
+        return "sitofp";
+    }
+    return "inst<unknown>";
+}
+
 std::string print_instr_op_name(Instruction::OpID id) {
     switch (id) {
     case Instruction::ret:
@@ -91,6 +212,236 @@ std::string print_instr_op_name(Instruction::OpID id) {
     assert(false && "Must be bug");
 }
 
+std::string Instruction::safe_print() const
+{
+    switch (op_id_)
+    {
+        case ret:
+	        {
+                std::string instr_ir;
+                instr_ir += get_instr_op_name();
+                instr_ir += " ";
+                if (!dynamic_cast<const ReturnInst*>(this)->is_void_ret()) {
+                    instr_ir += this->get_operand(0)->get_type()->print();
+                    instr_ir += " ";
+                    instr_ir += print_as_op(this->get_operand(0), false);
+                }
+                else {
+                    instr_ir += "void";
+                }
+                return instr_ir;
+	        }
+        case br:
+	        {
+                std::string instr_ir;
+                instr_ir += safe_print_instr_op_name(get_instr_type());
+                instr_ir += " ";
+                instr_ir += safe_print_op_as_op(this, 0, true);
+                if (dynamic_cast<const BranchInst*>(this)->is_cond_br()) {
+                    instr_ir += ", ";
+                    instr_ir += safe_print_op_as_op(this, 1, true);
+                    instr_ir += ", ";
+                    instr_ir += safe_print_op_as_op(this, 2, true);
+                }
+                return instr_ir;
+	        }
+        case add:
+        case sub:
+        case mul:
+        case sdiv:
+        case fadd:
+        case fsub:
+        case fmul:
+        case fdiv:
+            {
+                std::string instr_ir;
+                instr_ir += safe_print_as_op(this, true);
+                instr_ir += " = ";
+                instr_ir += safe_print_instr_op_name(op_id_);
+                instr_ir += " ";
+                instr_ir += safe_print_op_as_op(this, 0, true);
+                instr_ir += ", ";
+                instr_ir += safe_print_op_as_op(this, 1, true);
+                return instr_ir;
+            }
+        case alloca:
+	        {
+                std::string instr_ir;
+                instr_ir += safe_print_as_op(this, true);
+                instr_ir += " = ";
+                instr_ir += get_instr_op_name();
+                instr_ir += " ";
+                auto ty = get_type();
+                if (ty == nullptr || !ty->is_pointer_type())
+                {
+                    instr_ir += "t<unknown>";
+                }
+                else
+                {
+                    auto ty2 = ty->get_pointer_element_type();
+                    if (ty2 == nullptr)
+                        instr_ir += "t<null>";
+                    else instr_ir += ty2->safe_print();
+                }
+                return instr_ir;
+	        }
+        case load:
+	        {
+                std::string instr_ir;
+                instr_ir += safe_print_as_op(this, true);
+                instr_ir += " = ";
+                instr_ir += safe_print_instr_op_name(get_instr_type());
+                instr_ir += " ";
+                instr_ir += safe_print_op_as_op(this, 0, true);
+                return instr_ir;
+	        }
+        case store:
+	        {
+                std::string instr_ir;
+                instr_ir += safe_print_instr_op_name(get_instr_type());
+                instr_ir += " ";
+                instr_ir += safe_print_op_as_op(this, 0, true);
+                instr_ir += ", ";
+                instr_ir += safe_print_op_as_op(this, 1, true);
+                return instr_ir;
+	        }
+        case ge:
+        case gt:
+        case le:
+        case lt:
+        case eq:
+        case ne:
+            {
+                std::string instr_ir;
+                instr_ir += safe_print_as_op(this, true);
+                instr_ir += " = icmp ";
+                instr_ir += safe_print_instr_op_name(op_id_);
+                instr_ir += " ";
+                instr_ir += safe_print_op_as_op(this, 0, true);
+                instr_ir += ", ";
+                instr_ir += safe_print_op_as_op(this, 1, true);
+                return instr_ir;
+            }
+        case fge:
+        case fgt:
+        case fle:
+        case flt:
+        case feq:
+        case fne:
+            {
+                std::string instr_ir;
+                instr_ir += safe_print_as_op(this, true);
+                instr_ir += " = fcmp ";
+                instr_ir += safe_print_instr_op_name(op_id_);
+                instr_ir += " ";
+                instr_ir += safe_print_op_as_op(this, 0, true);
+                instr_ir += ", ";
+                instr_ir += safe_print_op_as_op(this, 1, true);
+                return instr_ir;
+            }
+        case phi:
+	        {
+        		std::string instr_ir;
+                instr_ir += safe_print_as_op(this, true);
+                instr_ir += " = ";
+                instr_ir += safe_print_instr_op_name(get_instr_type());
+                instr_ir += " ";
+                for (unsigned i = 0; i < this->get_num_operand() / 2; i++) {
+                    if (i > 0)
+                        instr_ir += ", ";
+                    instr_ir += "[ ";
+                    instr_ir += safe_print_op_as_op(this, i << 1, true);
+                    instr_ir += ", ";
+                    instr_ir += safe_print_op_as_op(this, (i << 1) + 1, true);
+                    instr_ir += " ]";
+                }
+                return instr_ir;
+	        }
+        case call:
+            {
+                std::string instr_ir;
+                auto ty = get_type();
+                if (ty == nullptr || !ty->is_void_type())
+                {
+                    instr_ir += safe_print_as_op(this, true);
+                    instr_ir += " = ";
+                }
+                instr_ir += safe_print_instr_op_name(op_id_);
+                instr_ir += " ";
+
+                if (get_num_operand() == 0)
+                {
+                    return instr_ir + "<error no operand>";
+                }
+
+                auto op0 = get_operand(0);
+
+                if (op0 == nullptr)
+                {
+                    instr_ir += "ft<null> ";
+                }
+                else
+                {
+                    if (auto fty = dynamic_cast<FunctionType*>(ty))
+                    {
+                        auto ty3 = fty->get_return_type();
+                        if (ty3 == nullptr)
+                            instr_ir += "t<null> ";
+                        else
+                            instr_ir += ty3->safe_print();
+                    }
+                    else
+                    {
+                        instr_ir += "<error not func> ";
+                        instr_ir += safe_print_as_op(op0, true);
+                        return instr_ir;
+                    }
+                }
+
+                instr_ir += " ";
+                instr_ir += safe_print_op_as_op(this, 0, false);
+                instr_ir += "(";
+                for (unsigned i = 1; i < this->get_num_operand(); i++) {
+                    if (i > 1)
+                        instr_ir += ", ";
+                    instr_ir += safe_print_op_as_op(this, i, true);
+                }
+                instr_ir += ")";
+                return instr_ir;
+            }
+        case getelementptr:
+	        {
+                std::string instr_ir;
+                instr_ir += safe_print_as_op(this, true);
+                instr_ir += " = ";
+                instr_ir += safe_print_instr_op_name(get_instr_type());
+                instr_ir += " ";
+                for (unsigned i = 0; i < this->get_num_operand(); i++) {
+                    if (i > 0)
+                        instr_ir += ", ";
+                    instr_ir += safe_print_op_as_op(this, i, true);
+                }
+                return instr_ir;
+	        }
+        case zext:
+        case fptosi:
+        case sitofp:
+	        {
+                std::string instr_ir;
+                instr_ir += safe_print_as_op(this, true);
+                instr_ir += " = ";
+                instr_ir += safe_print_instr_op_name(get_instr_type());
+                instr_ir += " ";
+                instr_ir += safe_print_op_as_op(this, 0, true);
+                return instr_ir;
+	        }
+    }
+    std::string str;
+    str += safe_print_as_op(this, true);
+    str += " = unknown inst";
+    return str;
+}
+
 template <class BinInst>
 static std::string print_binary_inst(const BinInst &inst) {
     std::string instr_ir;
@@ -111,6 +462,7 @@ static std::string print_binary_inst(const BinInst &inst) {
     return instr_ir;
 }
 std::string IBinaryInst::print() { return print_binary_inst(*this); }
+
 std::string FBinaryInst::print() { return print_binary_inst(*this); }
 
 template <class CMP>
@@ -140,6 +492,7 @@ static std::string print_cmp_inst(const CMP &inst) {
     return instr_ir;
 }
 std::string ICmpInst::print() { return print_cmp_inst(*this); }
+
 std::string FCmpInst::print() { return print_cmp_inst(*this); }
 
 std::string CallInst::print() {
@@ -185,12 +538,10 @@ std::string BranchInst::print() {
 
 std::string ReturnInst::print() {
     std::string instr_ir;
-    instr_ir += get_instr_op_name();
+    instr_ir += safe_print_instr_op_name(get_instr_type());
     instr_ir += " ";
     if (!is_void_ret()) {
-        instr_ir += this->get_operand(0)->get_type()->print();
-        instr_ir += " ";
-        instr_ir += print_as_op(this->get_operand(0), false);
+        instr_ir += safe_print_op_as_op(this, 0, true);
     } else {
         instr_ir += "void";
     }
