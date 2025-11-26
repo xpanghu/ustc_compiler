@@ -4,7 +4,7 @@
         {
             "type": "shell",
             "label": "make cminusfc",
-            "command": "cd build && make"
+            "command": "cd build && make -j4"
         }
     ]
 }
