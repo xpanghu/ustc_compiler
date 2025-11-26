@@ -12,12 +12,12 @@ struct Use;
 
 class Value {
   public:
-	Value(const Value& other) = delete;
-	Value(Value&& other) noexcept = delete;
-	Value& operator=(const Value& other) = delete;
-	Value& operator=(Value&& other) noexcept = delete;
+    Value(const Value& other) = delete;
+    Value(Value&& other) noexcept = delete;
+    Value& operator=(const Value& other) = delete;
+    Value& operator=(Value&& other) noexcept = delete;
 
-	explicit Value(Type *ty, std::string name = "")
+    explicit Value(Type *ty, std::string name = "")
         : type_(ty), name_(std::move(name)){}
     virtual ~Value();
 

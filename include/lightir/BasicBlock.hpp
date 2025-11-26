@@ -12,10 +12,10 @@ class Module;
 
 class BasicBlock : public Value {
   public:
-	BasicBlock(const BasicBlock& other) = delete;
-	BasicBlock(BasicBlock&& other) noexcept = delete;
-	BasicBlock& operator=(const BasicBlock& other) = delete;
-	BasicBlock& operator=(BasicBlock&& other) noexcept = delete;
+    BasicBlock(const BasicBlock& other) = delete;
+    BasicBlock(BasicBlock&& other) noexcept = delete;
+    BasicBlock& operator=(const BasicBlock& other) = delete;
+    BasicBlock& operator=(BasicBlock&& other) noexcept = delete;
     ~BasicBlock() override;
     static BasicBlock *create(Module *m, const std::string &name,
                               Function *parent) {
@@ -31,18 +31,18 @@ class BasicBlock : public Value {
     void add_pre_basic_block(BasicBlock *bb)
     {
         for (auto i : pre_bbs_) if (i == bb) return;
-	    pre_bbs_.push_back(bb);
+        pre_bbs_.push_back(bb);
     }
     // 自动去重
     void add_succ_basic_block(BasicBlock *bb)
     {
         for (auto i : succ_bbs_) if (i == bb) return;
-	    succ_bbs_.push_back(bb);
+        succ_bbs_.push_back(bb);
     }
     void remove_pre_basic_block(BasicBlock *bb) { pre_bbs_.remove(bb); }
     // 若你将 br label0, label0 的其中一个 label0 改为 label1，并且调用 remove_suc label0，那 suc 集合中也将不再包含 label0
     void remove_succ_basic_block(BasicBlock *bb) { succ_bbs_.remove(bb); }
-	BasicBlock* get_entry_block_of_same_function() const;
+    BasicBlock* get_entry_block_of_same_function() const;
 
     // If the Block is terminated by ret/br
     bool is_terminated() const;
@@ -77,7 +77,7 @@ class BasicBlock : public Value {
     Module *get_module() const;
     void erase_from_parent();
 
-	std::string print() override;
+    std::string print() override;
 
     // 用于 lldb 调试生成 summary
     std::string safe_print() const;

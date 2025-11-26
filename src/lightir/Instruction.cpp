@@ -15,7 +15,7 @@ Instruction::Instruction(Type *ty, OpID id, const std::string& name, BasicBlock 
     assert(ty != nullptr && "Instruction have null type");
     assert(((!ty->is_void_type()) || name.empty()) && "Void Type Instruction should not have name");
     if (parent)
-	    parent->add_instruction(this);
+        parent->add_instruction(this);
     if (!ty->is_void_type() && parent && parent->get_parent())
         set_name(parent_->get_parent()->names4insts_.get_name(name));
 }
@@ -226,7 +226,7 @@ GetElementPtrInst::GetElementPtrInst(Value *ptr, const std::vector<Value *>& idx
     add_operand(ptr);
     for (auto idx : idxs)
     {
-	    assert(idx->get_type()->is_integer_type() && "Index is not integer");
+        assert(idx->get_type()->is_integer_type() && "Index is not integer");
         add_operand(idx);
     }
 }
@@ -309,7 +309,7 @@ ZextInst::ZextInst(Value *val, Type *ty, BasicBlock *bb, const std::string& name
            "ZextInst operand is not integer");
     assert(ty->is_integer_type() && "ZextInst destination type is not integer");
     assert((dynamic_cast<IntegerType *>(val->get_type())->get_num_bits() <
-		    dynamic_cast<IntegerType *>(ty)->get_num_bits()) &&
+            dynamic_cast<IntegerType *>(ty)->get_num_bits()) &&
            "ZextInst operand bit size is not smaller than destination type bit "
            "size");
     add_operand(val);
@@ -368,4 +368,4 @@ PhiInst *PhiInst::create_phi(Type *ty, BasicBlock *bb,
     return new PhiInst(ty, vals, val_bbs, bb, name);
 }
 
-Names GLOBAL_INSTRUCTION_NAMES_{ true, "op", "" };
+Names GLOBAL_INSTRUCTION_NAMES_{"op", "_" };

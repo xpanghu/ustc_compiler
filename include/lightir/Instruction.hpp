@@ -277,7 +277,7 @@ class AllocaInst : public Instruction {
   public:
     // 新特性：指令表分为 {alloca, phi | other inst} 两段，创建和向基本块插入 alloca 和 phi，都只会插在第一段，它们在常规指令前面
     static AllocaInst *create_alloca(Type *ty, BasicBlock *bb, const std::string& name = "");
-	
+    
     Type *get_alloca_type() const {
         return get_type()->get_pointer_element_type();
     }

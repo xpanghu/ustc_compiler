@@ -23,7 +23,7 @@ Module::~Module()
     for (auto& i : pointer_map_) delete i.second;
     for (auto& i : array_map_) delete i.second;
     for (auto& i : function_map_) delete i.second;
-	for (auto i : function_list_) delete i;
+    for (auto i : function_list_) delete i;
     for (auto i : global_list_) delete i;
 }
 

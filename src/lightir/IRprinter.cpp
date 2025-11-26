@@ -217,7 +217,7 @@ std::string Instruction::safe_print() const
     switch (op_id_)
     {
         case ret:
-	        {
+            {
                 std::string instr_ir;
                 instr_ir += get_instr_op_name();
                 instr_ir += " ";
@@ -230,9 +230,9 @@ std::string Instruction::safe_print() const
                     instr_ir += "void";
                 }
                 return instr_ir;
-	        }
+            }
         case br:
-	        {
+            {
                 std::string instr_ir;
                 instr_ir += safe_print_instr_op_name(get_instr_type());
                 instr_ir += " ";
@@ -244,7 +244,7 @@ std::string Instruction::safe_print() const
                     instr_ir += safe_print_op_as_op(this, 2, true);
                 }
                 return instr_ir;
-	        }
+            }
         case add:
         case sub:
         case mul:
@@ -265,7 +265,7 @@ std::string Instruction::safe_print() const
                 return instr_ir;
             }
         case alloca:
-	        {
+            {
                 std::string instr_ir;
                 instr_ir += safe_print_as_op(this, true);
                 instr_ir += " = ";
@@ -284,9 +284,9 @@ std::string Instruction::safe_print() const
                     else instr_ir += ty2->safe_print();
                 }
                 return instr_ir;
-	        }
+            }
         case load:
-	        {
+            {
                 std::string instr_ir;
                 instr_ir += safe_print_as_op(this, true);
                 instr_ir += " = ";
@@ -294,9 +294,9 @@ std::string Instruction::safe_print() const
                 instr_ir += " ";
                 instr_ir += safe_print_op_as_op(this, 0, true);
                 return instr_ir;
-	        }
+            }
         case store:
-	        {
+            {
                 std::string instr_ir;
                 instr_ir += safe_print_instr_op_name(get_instr_type());
                 instr_ir += " ";
@@ -304,7 +304,7 @@ std::string Instruction::safe_print() const
                 instr_ir += ", ";
                 instr_ir += safe_print_op_as_op(this, 1, true);
                 return instr_ir;
-	        }
+            }
         case ge:
         case gt:
         case le:
@@ -340,8 +340,8 @@ std::string Instruction::safe_print() const
                 return instr_ir;
             }
         case phi:
-	        {
-        		std::string instr_ir;
+            {
+                std::string instr_ir;
                 instr_ir += safe_print_as_op(this, true);
                 instr_ir += " = ";
                 instr_ir += safe_print_instr_op_name(get_instr_type());
@@ -356,7 +356,7 @@ std::string Instruction::safe_print() const
                     instr_ir += " ]";
                 }
                 return instr_ir;
-	        }
+            }
         case call:
             {
                 std::string instr_ir;
@@ -410,7 +410,7 @@ std::string Instruction::safe_print() const
                 return instr_ir;
             }
         case getelementptr:
-	        {
+            {
                 std::string instr_ir;
                 instr_ir += safe_print_as_op(this, true);
                 instr_ir += " = ";
@@ -422,11 +422,11 @@ std::string Instruction::safe_print() const
                     instr_ir += safe_print_op_as_op(this, i, true);
                 }
                 return instr_ir;
-	        }
+            }
         case zext:
         case fptosi:
         case sitofp:
-	        {
+            {
                 std::string instr_ir;
                 instr_ir += safe_print_as_op(this, true);
                 instr_ir += " = ";
@@ -434,7 +434,7 @@ std::string Instruction::safe_print() const
                 instr_ir += " ";
                 instr_ir += safe_print_op_as_op(this, 0, true);
                 return instr_ir;
-	        }
+            }
     }
     std::string str;
     str += safe_print_as_op(this, true);
@@ -538,10 +538,12 @@ std::string BranchInst::print() {
 
 std::string ReturnInst::print() {
     std::string instr_ir;
-    instr_ir += safe_print_instr_op_name(get_instr_type());
+    instr_ir += get_instr_op_name();
     instr_ir += " ";
     if (!is_void_ret()) {
-        instr_ir += safe_print_op_as_op(this, 0, true);
+        instr_ir += this->get_operand(0)->get_type()->print();
+        instr_ir += " ";
+        instr_ir += print_as_op(this->get_operand(0), false);
     } else {
         instr_ir += "void";
     }

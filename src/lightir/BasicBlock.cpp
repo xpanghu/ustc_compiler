@@ -47,7 +47,7 @@ void BasicBlock::add_instruction(Instruction *instr) {
         auto it = instr_list_.begin();
         for (;  it != instr_list_.end() && ((*it)->is_alloca() || (*it)->is_phi()); ++it){}
         instr_list_.emplace(it, instr);
-    	return;
+        return;
     }
     assert(not is_terminated() && "Inserting instruction to terminated bb");
     instr_list_.push_back(instr);
@@ -56,7 +56,7 @@ void BasicBlock::add_instruction(Instruction *instr) {
 void BasicBlock::add_instr_begin(Instruction* instr)
 {
     if (instr->is_alloca() || instr->is_phi())
-		instr_list_.push_front(instr);
+        instr_list_.push_front(instr);
     else
     {
         auto it = instr_list_.begin();
@@ -121,8 +121,8 @@ BasicBlock::~BasicBlock()
 
 BasicBlock* BasicBlock::get_entry_block_of_same_function() const
 {
-	assert(parent_ != nullptr && "bb have no parent function");
-	return parent_->get_entry_block();
+    assert(parent_ != nullptr && "bb have no parent function");
+    return parent_->get_entry_block();
 }
 
-Names GLOBAL_BASICBLOCK_NAMES_{false, "label", ""};
+Names GLOBAL_BASICBLOCK_NAMES_{"label", "_"};

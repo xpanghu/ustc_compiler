@@ -42,7 +42,7 @@ class Module {
 
   private:
     // The global variables in the module
-	std::list<GlobalVariable*> global_list_;
+    std::list<GlobalVariable*> global_list_;
     // The functions in the module
     std::list<Function*> function_list_;
 

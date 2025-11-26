@@ -108,7 +108,7 @@ Value* CminusfBuilder::visit(ASTVarDeclaration &node) {
 }
 
 Value* CminusfBuilder::visit(ASTFunDeclaration &node) {
-	Type *ret_type;
+    Type *ret_type;
     std::vector<Type *> param_types;
     if (node.type == TYPE_INT)
         ret_type = INT32_T;
@@ -142,8 +142,8 @@ Value* CminusfBuilder::visit(ASTFunDeclaration &node) {
     scope.enter();
     context.pre_enter_scope = true;
     std::vector<Value *> args;
-    for (auto &arg : func->get_args()) {
-        args.push_back(&arg);
+    for (auto arg : func->get_args()) {
+        args.push_back(arg);
     }
     for (unsigned int i = 0; i < node.params.size(); ++i) {
         if (node.params[i]->isarray) {

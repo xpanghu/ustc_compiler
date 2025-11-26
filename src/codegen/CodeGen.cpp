@@ -1,6 +1,22 @@
 #include "CodeGen.hpp"
 
+#include "ASMInstruction.hpp"
 #include "CodeGenUtil.hpp"
+#include "Register.hpp"
+
+std::string ASMInstruction::safe_print() const
+{
+    switch (type) {
+    case Instruction:
+    case Attribute:
+        return content;
+    case Label:
+        return content + ":";
+    case Comment:
+        return "# " + content;
+    }
+    return "<error>";
+}
 
 void CodeGen::allocate() {
     // 备份 $ra $fp
@@ -8,9 +24,9 @@ void CodeGen::allocate() {
 
     // 为每个参数分配栈空间
     for (auto &arg : context.func->get_args()) {
-        auto size = arg.get_type()->get_size();
+        auto size = arg->get_type()->get_size();
         offset = offset + size;
-        context.offset_map[&arg] = -static_cast<int>(offset);
+        context.offset_map[arg] = -static_cast<int>(offset);
     }
 
     // 为指令结果分配栈空间
@@ -205,11 +221,11 @@ void CodeGen::gen_prologue() {
 
     int garg_cnt = 0;
     int farg_cnt = 0;
-    for (auto &arg : context.func->get_args()) {
-        if (arg.get_type()->is_float_type()) {
-            store_from_freg(&arg, FReg::fa(farg_cnt++));
+    for (auto arg : context.func->get_args()) {
+        if (arg->get_type()->is_float_type()) {
+            store_from_freg(arg, FReg::fa(farg_cnt++));
         } else { // int or pointer
-            store_from_greg(&arg, Reg::a(garg_cnt++));
+            store_from_greg(arg, Reg::a(garg_cnt++));
         }
     }
 }
@@ -241,16 +257,16 @@ void CodeGen::gen_binary() {
     load_to_greg(context.inst->get_operand(1), Reg::t(1));
     switch (context.inst->get_instr_type()) {
     case Instruction::add:
-        output.emplace_back("add.w $t2, $t0, $t1");
+        append_inst("add.w $t2, $t0, $t1");
         break;
     case Instruction::sub:
-        output.emplace_back("sub.w $t2, $t0, $t1");
+        append_inst("sub.w $t2, $t0, $t1");
         break;
     case Instruction::mul:
-        output.emplace_back("mul.w $t2, $t0, $t1");
+        append_inst("mul.w $t2, $t0, $t1");
         break;
     case Instruction::sdiv:
-        output.emplace_back("div.w $t2, $t0, $t1");
+        append_inst("div.w $t2, $t0, $t1");
         break;
     default:
         assert(false);
@@ -370,26 +386,26 @@ void CodeGen::run() {
          * - 支持更旧版本的 GNU 汇编器, 因为 `.bss` 伪指令是应该相对较新的指令,
          *   GNU 汇编器在 2023 年 2 月的 2.37 版本才将其引入
          */
-        append_inst(".text", ASMInstruction::Atrribute);
+        append_inst(".text", ASMInstruction::Attribute);
         append_inst(".section", {".bss", "\"aw\"", "@nobits"},
-                    ASMInstruction::Atrribute);
+                    ASMInstruction::Attribute);
         for (auto global : m->get_global_variable()) {
             auto size =
                 global->get_type()->get_pointer_element_type()->get_size();
             append_inst(".globl", {global->get_name()},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
             append_inst(".type", {global->get_name(), "@object"},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
             append_inst(".size", {global->get_name(), std::to_string(size)},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
             append_inst(global->get_name(), ASMInstruction::Label);
             append_inst(".space", {std::to_string(size)},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
         }
     }
 
     // 函数代码段
-    output.emplace_back(".text", ASMInstruction::Atrribute);
+    output.emplace_back(new ASMInstruction(".text", ASMInstruction::Attribute));
     for (auto func : m->get_functions()) {
         if (not func->is_declaration()) {
             // 更新 context
@@ -397,9 +413,9 @@ void CodeGen::run() {
             context.func = func;
 
             // 函数信息
-            append_inst(".globl", {func->get_name()}, ASMInstruction::Atrribute);
+            append_inst(".globl", {func->get_name()}, ASMInstruction::Attribute);
             append_inst(".type", {func->get_name(), "@function"},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
             append_inst(func->get_name(), ASMInstruction::Label);
 
             // 分配函数栈帧
@@ -495,8 +511,8 @@ void CodeGen::run() {
 
 std::string CodeGen::print() const {
     std::string result;
-    for (const auto &inst : output) {
-        result += inst.format();
+    for (const auto inst : output) {
+        result += inst->format();
     }
     return result;
 }

@@ -32,6 +32,9 @@ struct Reg {
 
     std::string print() const;
 
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
+
     static Reg zero() { return Reg(0); }
     static Reg ra() { return Reg(1); }
     static Reg sp() { return Reg(3); }
@@ -62,17 +65,20 @@ struct FReg {
     std::string print() const;
 
     static FReg fa(unsigned i) {
-        assert(0 <= i and i <= 7);
+        assert(i <= 7);
         return FReg(i);
     }
     static FReg ft(unsigned i) {
-        assert(0 <= i and i <= 15);
+        assert(i <= 15);
         return FReg(i + 8);
     }
     static FReg fs(unsigned i) {
-        assert(0 <= i and i <= 7);
+        assert(i <= 7);
         return FReg(i + 24);
     }
+
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
 };
 
 struct CFReg {
@@ -82,4 +88,7 @@ struct CFReg {
     bool operator==(const CFReg &other) { return id == other.id; }
 
     std::string print() const { return "$fcc" + std::to_string(id); }
+
+    // 用于 lldb 调试生成 summary
+    std::string safe_print() const;
 };

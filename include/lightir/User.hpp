@@ -6,11 +6,11 @@
 
 class User : public Value {
   public:
-	User(const User& other) = delete;
-	User(User&& other) noexcept = delete;
-	User& operator=(const User& other) = delete;
-	User& operator=(User&& other) noexcept = delete;
-	User(Type *ty, const std::string &name = "") : Value(ty, name){}
+    User(const User& other) = delete;
+    User(User&& other) noexcept = delete;
+    User& operator=(const User& other) = delete;
+    User& operator=(User&& other) noexcept = delete;
+    User(Type *ty, const std::string &name = "") : Value(ty, name){}
     ~User() override;
 
     const std::vector<Value *> &get_operands() const { return operands_; }

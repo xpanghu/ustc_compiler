@@ -168,7 +168,7 @@ std::string ConstantFP::print() {
 ConstantZero *ConstantZero::get(Type *ty, Module *m) {
     if (not cached_zero[ty])
     {
-	    cached_zero[ty] = std::unique_ptr<ConstantZero>(new ConstantZero(ty));
+        cached_zero[ty] = std::unique_ptr<ConstantZero>(new ConstantZero(ty));
     }
     return cached_zero[ty].get();
 }

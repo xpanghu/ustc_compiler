@@ -12,12 +12,12 @@ class FloatType;
 
 class Type {
   public:
-	Type(const Type& other) = delete;
-	Type(Type&& other) noexcept = delete;
-	Type& operator=(const Type& other) = delete;
-	Type& operator=(Type&& other) noexcept = delete;
+    Type(const Type& other) = delete;
+    Type(Type&& other) noexcept = delete;
+    Type& operator=(const Type& other) = delete;
+    Type& operator=(Type&& other) noexcept = delete;
 
-	enum TypeID: uint8_t {
+    enum TypeID: uint8_t {
         VoidTyID,     // Void
         LabelTyID,    // Labels, e.g., BasicBlock
         IntegerTyID,  // Integers, include 32 bits and 1 bit
@@ -63,12 +63,12 @@ class Type {
 
 class IntegerType : public Type {
   public:
-	IntegerType(const IntegerType& other) = delete;
-	IntegerType(IntegerType&& other) noexcept = delete;
-	IntegerType& operator=(const IntegerType& other) = delete;
-	IntegerType& operator=(IntegerType&& other) noexcept = delete;
+    IntegerType(const IntegerType& other) = delete;
+    IntegerType(IntegerType&& other) noexcept = delete;
+    IntegerType& operator=(const IntegerType& other) = delete;
+    IntegerType& operator=(IntegerType&& other) noexcept = delete;
 
-	explicit IntegerType(unsigned num_bits, Module *m);
+    explicit IntegerType(unsigned num_bits, Module *m);
     ~IntegerType() override;
 
     unsigned get_num_bits() const;
@@ -79,12 +79,12 @@ class IntegerType : public Type {
 
 class FunctionType : public Type {
   public:
-	FunctionType(const FunctionType& other) = delete;
-	FunctionType(FunctionType&& other) noexcept = delete;
-	FunctionType& operator=(const FunctionType& other) = delete;
-	FunctionType& operator=(FunctionType&& other) noexcept = delete;
+    FunctionType(const FunctionType& other) = delete;
+    FunctionType(FunctionType&& other) noexcept = delete;
+    FunctionType& operator=(const FunctionType& other) = delete;
+    FunctionType& operator=(FunctionType&& other) noexcept = delete;
 
-	FunctionType(Type *result, const std::vector<Type *>& params);
+    FunctionType(Type *result, const std::vector<Type *>& params);
     ~FunctionType() override;
 
     static bool is_valid_return_type(const Type *ty);
@@ -106,12 +106,12 @@ class FunctionType : public Type {
 
 class ArrayType : public Type {
   public:
-	ArrayType(const ArrayType& other) = delete;
-	ArrayType(ArrayType&& other) noexcept = delete;
-	ArrayType& operator=(const ArrayType& other) = delete;
-	ArrayType& operator=(ArrayType&& other) noexcept = delete;
+    ArrayType(const ArrayType& other) = delete;
+    ArrayType(ArrayType&& other) noexcept = delete;
+    ArrayType& operator=(const ArrayType& other) = delete;
+    ArrayType& operator=(ArrayType&& other) noexcept = delete;
 
-	ArrayType(Type *contained, unsigned num_elements);
+    ArrayType(Type *contained, unsigned num_elements);
     ~ArrayType() override;
 
     static bool is_valid_element_type(const Type *ty);
@@ -128,12 +128,12 @@ class ArrayType : public Type {
 
 class PointerType : public Type {
   public:
-	PointerType(const PointerType& other) = delete;
-	PointerType(PointerType&& other) noexcept = delete;
-	PointerType& operator=(const PointerType& other) = delete;
-	PointerType& operator=(PointerType&& other) noexcept = delete;
+    PointerType(const PointerType& other) = delete;
+    PointerType(PointerType&& other) noexcept = delete;
+    PointerType& operator=(const PointerType& other) = delete;
+    PointerType& operator=(PointerType&& other) noexcept = delete;
 
-	PointerType(Type *contained);
+    PointerType(Type *contained);
     ~PointerType() override;
     Type *get_element_type() const { return contained_; }
 
@@ -145,12 +145,12 @@ class PointerType : public Type {
 
 class FloatType : public Type {
   public:
-	FloatType(const FloatType& other) = delete;
-	FloatType(FloatType&& other) noexcept = delete;
-	FloatType& operator=(const FloatType& other) = delete;
-	FloatType& operator=(FloatType&& other) noexcept = delete;
+    FloatType(const FloatType& other) = delete;
+    FloatType(FloatType&& other) noexcept = delete;
+    FloatType& operator=(const FloatType& other) = delete;
+    FloatType& operator=(FloatType&& other) noexcept = delete;
 
-	FloatType(Module *m);
+    FloatType(Module *m);
     ~FloatType() override;
     static FloatType *get(Module *m);
 };

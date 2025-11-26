@@ -90,23 +90,23 @@ struct ASTNode {
 };
 
 struct ASTProgram : ASTNode {
-	Value* accept(ASTVisitor &) final;
-	~ASTProgram() override = default;
+    Value* accept(ASTVisitor &) final;
+    ~ASTProgram() override = default;
     std::vector<std::shared_ptr<ASTDeclaration>> declarations;
 };
 
 struct ASTDeclaration : ASTNode {
-	~ASTDeclaration() override = default;
+    ~ASTDeclaration() override = default;
     CminusType type;
     std::string id;
 };
 
 struct ASTFactor : ASTNode {
-	~ASTFactor() override = default;
+    ~ASTFactor() override = default;
 };
 
 struct ASTNum : ASTFactor {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     CminusType type;
     union {
         int i_val;
@@ -115,18 +115,18 @@ struct ASTNum : ASTFactor {
 };
 
 struct ASTVarDeclaration : ASTDeclaration {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::shared_ptr<ASTNum> num;
 };
 
 struct ASTFunDeclaration : ASTDeclaration {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::vector<std::shared_ptr<ASTParam>> params;
     std::shared_ptr<ASTCompoundStmt> compound_stmt;
 };
 
 struct ASTParam : ASTNode {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     CminusType type;
     std::string id;
     // true if it is array param
@@ -134,22 +134,22 @@ struct ASTParam : ASTNode {
 };
 
 struct ASTStatement : ASTNode {
-	~ASTStatement() override = default;
+    ~ASTStatement() override = default;
 };
 
 struct ASTCompoundStmt : ASTStatement {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::vector<std::shared_ptr<ASTVarDeclaration>> local_declarations;
     std::vector<std::shared_ptr<ASTStatement>> statement_list;
 };
 
 struct ASTExpressionStmt : ASTStatement {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::shared_ptr<ASTExpression> expression;
 };
 
 struct ASTSelectionStmt : ASTStatement {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::shared_ptr<ASTExpression> expression;
     std::shared_ptr<ASTStatement> if_statement;
     // should be nullptr if no else structure exists
@@ -157,13 +157,13 @@ struct ASTSelectionStmt : ASTStatement {
 };
 
 struct ASTIterationStmt : ASTStatement {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::shared_ptr<ASTExpression> expression;
     std::shared_ptr<ASTStatement> statement;
 };
 
 struct ASTReturnStmt : ASTStatement {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     // should be nullptr if return void
     std::shared_ptr<ASTExpression> expression;
 };
@@ -171,41 +171,41 @@ struct ASTReturnStmt : ASTStatement {
 struct ASTExpression : ASTFactor {};
 
 struct ASTAssignExpression : ASTExpression {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::shared_ptr<ASTVar> var;
     std::shared_ptr<ASTExpression> expression;
 };
 
 struct ASTSimpleExpression : ASTExpression {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::shared_ptr<ASTAdditiveExpression> additive_expression_l;
     std::shared_ptr<ASTAdditiveExpression> additive_expression_r;
     RelOp op;
 };
 
 struct ASTVar : ASTFactor {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::string id;
     // nullptr if var is of int type
     std::shared_ptr<ASTExpression> expression;
 };
 
 struct ASTAdditiveExpression : ASTNode {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::shared_ptr<ASTAdditiveExpression> additive_expression;
     AddOp op;
     std::shared_ptr<ASTTerm> term;
 };
 
 struct ASTTerm : ASTNode {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::shared_ptr<ASTTerm> term;
     MulOp op;
     std::shared_ptr<ASTFactor> factor;
 };
 
 struct ASTCall : ASTFactor {
-	Value* accept(ASTVisitor &) final;
+    Value* accept(ASTVisitor &) final;
     std::string id;
     std::vector<std::shared_ptr<ASTExpression>> args;
 };
@@ -233,22 +233,22 @@ class ASTVisitor {
 
 class ASTPrinter : public ASTVisitor {
   public:
-	Value* visit(ASTProgram &) final;
-	Value* visit(ASTNum &) final;
-	Value* visit(ASTVarDeclaration &) final;
-	Value* visit(ASTFunDeclaration &) final;
-	Value* visit(ASTParam &) final;
-	Value* visit(ASTCompoundStmt &) final;
-	Value* visit(ASTExpressionStmt &) final;
-	Value* visit(ASTSelectionStmt &) final;
-	Value* visit(ASTIterationStmt &) final;
-	Value* visit(ASTReturnStmt &) final;
-	Value* visit(ASTAssignExpression &) final;
-	Value* visit(ASTSimpleExpression &) final;
-	Value* visit(ASTAdditiveExpression &) final;
-	Value* visit(ASTVar &) final;
-	Value* visit(ASTTerm &) final;
-	Value* visit(ASTCall &) final;
+    Value* visit(ASTProgram &) final;
+    Value* visit(ASTNum &) final;
+    Value* visit(ASTVarDeclaration &) final;
+    Value* visit(ASTFunDeclaration &) final;
+    Value* visit(ASTParam &) final;
+    Value* visit(ASTCompoundStmt &) final;
+    Value* visit(ASTExpressionStmt &) final;
+    Value* visit(ASTSelectionStmt &) final;
+    Value* visit(ASTIterationStmt &) final;
+    Value* visit(ASTReturnStmt &) final;
+    Value* visit(ASTAssignExpression &) final;
+    Value* visit(ASTSimpleExpression &) final;
+    Value* visit(ASTAdditiveExpression &) final;
+    Value* visit(ASTVar &) final;
+    Value* visit(ASTTerm &) final;
+    Value* visit(ASTCall &) final;
     void add_depth() { depth += 2; }
     void remove_depth() { depth -= 2; }
 

@@ -3,31 +3,33 @@
 #include "Module.hpp"
 #include "Instruction.hpp"
 #include <cassert>
+#include <string>
 #include <unordered_set>
 #include <queue>
 
 namespace
 {
-	std::string chopName(std::string name)
-	{
-        if (name.size() > 4) return { name.begin(), name.begin() + 4 };
+    std::string chopName(std::string name)
+    {
+        if (name.size() > 3) return { name.begin(), name.begin() + 3 };
         return name;
-	}
+    }
 }
 
 Function::Function(FunctionType* ty, const std::string& name, Module* parent)
-    : Value(ty, name), names4blocks_(false, "label", chopName(name)), names4insts_(true, "op", ""), parent_(parent), seq_cnt_(0) {
+    : Value(ty, name), names4blocks_("label", chopName(name) + "_"), names4insts_("op", ""), parent_(parent), seq_cnt_(0) {
     // num_args_ = ty->getNumParams();
     parent->add_function(this);
     // build args
     for (unsigned i = 0; i < get_num_of_args(); i++) {
-        arguments_.emplace_back(ty->get_param_type(i), "", this, i);
+        arguments_.emplace_back(new Argument(ty->get_param_type(i), "arg" + std::to_string(i), this, i));
     }
 }
 
 Function::~Function()
 {
     for (auto bb : basic_blocks_) delete bb;
+    for(auto arg: arguments_) delete arg;
 }
 
 Function* Function::create(FunctionType* ty, const std::string& name,
@@ -66,10 +68,10 @@ void Function::add_basic_block(BasicBlock* bb) { basic_blocks_.push_back(bb); }
 void Function::set_instr_name() {
     std::map<Value*, int> seq;
     for (auto& arg : this->get_args()) {
-        if (seq.find(&arg) == seq.end()) {
+        if (seq.find(arg) == seq.end()) {
             auto seq_num = seq.size() + seq_cnt_;
-            if (arg.set_name("arg" + std::to_string(seq_num))) {
-                seq.insert({ &arg, seq_num });
+            if (arg->set_name("arg" + std::to_string(seq_num))) {
+                seq.insert({ arg, seq_num });
             }
         }
     }
@@ -121,7 +123,7 @@ std::string Function::print() {
         for (auto& arg : get_args()) {
             if (&arg != &*get_args().begin())
                 func_ir += ", ";
-            func_ir += arg.print();
+            func_ir += arg->print();
         }
     }
     func_ir += ")";
@@ -160,7 +162,7 @@ std::string Argument::safe_print() const
     auto ty = parent->get_function_type();
     if (ty == nullptr || ty->get_num_of_args() <= arg_no_) return "@" + parent->get_name() + " arg" + std::to_string(arg_no_) + " <unknow type>";
     auto ty2 = ty->get_param_type(arg_no_);
-    return "@" + parent->get_name() + " arg" + std::to_string(arg_no_) + " " + (ty2 == nullptr ? "<null>" : ty2->safe_print());
+    return (ty2 == nullptr ? "<null>" : ty2->safe_print()) + " @" + parent->get_name() + " arg" + std::to_string(arg_no_);
 }
 
 
