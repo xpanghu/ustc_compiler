@@ -91,7 +91,7 @@ Value* CminusfBuilder::visit(ASTVarDeclaration &node) {
             auto nowBB = builder->get_insert_block();
             auto entryBB = context.func->get_entry_block();
             builder->set_insert_point(entryBB);
-            auto *var = builder->create_alloca(var_type);
+            auto *var = builder->create_alloca(var_type, node.id);
             builder->set_insert_point(nowBB);
             scope.push(node.id, var);
         } else {
@@ -99,7 +99,7 @@ Value* CminusfBuilder::visit(ASTVarDeclaration &node) {
             auto entryBB = context.func->get_entry_block();
             builder->set_insert_point(entryBB);
             auto *array_type = ArrayType::get(var_type, node.num->i_val);
-            auto *var = builder->create_alloca(array_type);
+            auto *var = builder->create_alloca(array_type, node.id);
             builder->set_insert_point(nowBB);
             scope.push(node.id, var);
         }
@@ -149,18 +149,18 @@ Value* CminusfBuilder::visit(ASTFunDeclaration &node) {
         if (node.params[i]->isarray) {
             Value *array_alloc;
             if (node.params[i]->type == TYPE_INT) {
-                array_alloc = builder->create_alloca(INT32PTR_T);
+                array_alloc = builder->create_alloca(INT32PTR_T, node.params[i]->id);
             } else {
-                array_alloc = builder->create_alloca(FLOATPTR_T);
+                array_alloc = builder->create_alloca(FLOATPTR_T, node.params[i]->id);
             }
             builder->create_store(args[i], array_alloc);
             scope.push(node.params[i]->id, array_alloc);
         } else {
             Value *alloc;
             if (node.params[i]->type == TYPE_INT) {
-                alloc = builder->create_alloca(INT32_T);
+                alloc = builder->create_alloca(INT32_T, node.params[i]->id);
             } else {
-                alloc = builder->create_alloca(FLOAT_T);
+                alloc = builder->create_alloca(FLOAT_T, node.params[i]->id);
             }
             builder->create_store(args[i], alloc);
             scope.push(node.params[i]->id, alloc);

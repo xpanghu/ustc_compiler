@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Names.hpp"
 #include "Type.hpp"
 #include "User.hpp"
 
@@ -52,7 +53,7 @@ class Instruction : public User {
     };
     /* @parent: if parent!=nullptr, auto insert to bb
      * @ty: result type */
-    Instruction(Type *ty, OpID id, BasicBlock *parent = nullptr);
+    Instruction(Type *ty, OpID id, const std::string& name, BasicBlock *parent = nullptr);
     ~Instruction() override;
 
     Instruction(const Instruction& other) = delete;
@@ -121,13 +122,13 @@ class Instruction : public User {
 class IBinaryInst : public Instruction {
 
   private:
-    IBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb);
+    IBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb, const std::string& name);
 
   public:
-    static IBinaryInst *create_add(Value *v1, Value *v2, BasicBlock *bb);
-    static IBinaryInst *create_sub(Value *v1, Value *v2, BasicBlock *bb);
-    static IBinaryInst *create_mul(Value *v1, Value *v2, BasicBlock *bb);
-    static IBinaryInst *create_sdiv(Value *v1, Value *v2, BasicBlock *bb);
+    static IBinaryInst *create_add(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static IBinaryInst *create_sub(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static IBinaryInst *create_mul(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static IBinaryInst *create_sdiv(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
 
     std::string print() override;
 };
@@ -135,13 +136,13 @@ class IBinaryInst : public Instruction {
 class FBinaryInst : public Instruction {
 
   private:
-    FBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb);
+    FBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb, const std::string& name);
 
   public:
-    static FBinaryInst *create_fadd(Value *v1, Value *v2, BasicBlock *bb);
-    static FBinaryInst *create_fsub(Value *v1, Value *v2, BasicBlock *bb);
-    static FBinaryInst *create_fmul(Value *v1, Value *v2, BasicBlock *bb);
-    static FBinaryInst *create_fdiv(Value *v1, Value *v2, BasicBlock *bb);
+    static FBinaryInst *create_fadd(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static FBinaryInst *create_fsub(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static FBinaryInst *create_fmul(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static FBinaryInst *create_fdiv(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
 
     std::string print() override;
 };
@@ -149,16 +150,16 @@ class FBinaryInst : public Instruction {
 class ICmpInst : public Instruction {
 
   private:
-    ICmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb);
+    ICmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb, const std::string& name);
 
   public:
 
-    static ICmpInst *create_ge(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_gt(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_le(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_lt(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_eq(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_ne(Value *v1, Value *v2, BasicBlock *bb);
+    static ICmpInst *create_ge(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static ICmpInst *create_gt(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static ICmpInst *create_le(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static ICmpInst *create_lt(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static ICmpInst *create_eq(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static ICmpInst *create_ne(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
 
     std::string print() override;
 };
@@ -166,15 +167,15 @@ class ICmpInst : public Instruction {
 class FCmpInst : public Instruction {
 
   private:
-    FCmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb);
+    FCmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb, const std::string& name);
 
   public:
-    static FCmpInst *create_fge(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_fgt(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_fle(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_flt(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_feq(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_fne(Value *v1, Value *v2, BasicBlock *bb);
+    static FCmpInst *create_fge(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static FCmpInst *create_fgt(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static FCmpInst *create_fle(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static FCmpInst *create_flt(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static FCmpInst *create_feq(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
+    static FCmpInst *create_fne(Value *v1, Value *v2, BasicBlock *bb, const std::string& name = "");
 
     std::string print() override;
 };
@@ -182,11 +183,11 @@ class FCmpInst : public Instruction {
 class CallInst : public Instruction {
 
   protected:
-    CallInst(Function *func, const std::vector<Value *>& args, BasicBlock *bb);
+    CallInst(Function *func, const std::vector<Value *>& args, BasicBlock *bb, const std::string& name);
 
   public:
     static CallInst *create_call(Function *func, const std::vector<Value *>& args,
-                                 BasicBlock *bb);
+                                 BasicBlock *bb, const std::string& name = "");
     FunctionType *get_function_type() const;
 
     std::string print() override;
@@ -232,12 +233,12 @@ class ReturnInst : public Instruction {
 class GetElementPtrInst : public Instruction {
 
   private:
-    GetElementPtrInst(Value *ptr, const std::vector<Value *>& idxs, BasicBlock *bb);
+    GetElementPtrInst(Value *ptr, const std::vector<Value *>& idxs, BasicBlock *bb, const std::string& name);
 
   public:
-    static Type *get_element_type(const Value *ptr, const std::vector<Value *>& idxs);
+    static Type *get_element_type(const Value *ptr, const std::vector<Value *>& idxs, const std::string& name = "");
     static GetElementPtrInst *create_gep(Value *ptr, const std::vector<Value *>& idxs,
-                                         BasicBlock *bb);
+                                         BasicBlock *bb, const std::string& name = "");
     Type *get_element_type() const;
 
     std::string print() override;
@@ -258,10 +259,10 @@ class StoreInst : public Instruction {
 
 class LoadInst : public Instruction {
 
-    LoadInst(Value *ptr, BasicBlock *bb);
+    LoadInst(Value *ptr, BasicBlock *bb, const std::string& name);
 
   public:
-    static LoadInst *create_load(Value *ptr, BasicBlock *bb);
+    static LoadInst *create_load(Value *ptr, BasicBlock *bb, const std::string& name = "");
 
     Value *get_lval() const { return this->get_operand(0); }
     Type *get_load_type() const { return get_type(); }
@@ -271,11 +272,11 @@ class LoadInst : public Instruction {
 
 class AllocaInst : public Instruction {
 
-    AllocaInst(Type *ty, BasicBlock *bb);
+    AllocaInst(Type *ty, BasicBlock *bb, const std::string& name);
 
   public:
     // 新特性：指令表分为 {alloca, phi | other inst} 两段，创建和向基本块插入 alloca 和 phi，都只会插在第一段，它们在常规指令前面
-    static AllocaInst *create_alloca(Type *ty, BasicBlock *bb);
+    static AllocaInst *create_alloca(Type *ty, BasicBlock *bb, const std::string& name = "");
 	
     Type *get_alloca_type() const {
         return get_type()->get_pointer_element_type();
@@ -287,11 +288,11 @@ class AllocaInst : public Instruction {
 class ZextInst : public Instruction {
 
   private:
-    ZextInst(Value *val, Type *ty, BasicBlock *bb);
+    ZextInst(Value *val, Type *ty, BasicBlock *bb, const std::string& name);
 
   public:
-    static ZextInst *create_zext(Value *val, Type *ty, BasicBlock *bb);
-    static ZextInst *create_zext_to_i32(Value *val, BasicBlock *bb);
+    static ZextInst *create_zext(Value *val, Type *ty, BasicBlock *bb, const std::string& name = "");
+    static ZextInst *create_zext_to_i32(Value *val, BasicBlock *bb, const std::string& name = "");
 
     Type *get_dest_type() const { return get_type(); }
 
@@ -301,11 +302,11 @@ class ZextInst : public Instruction {
 class FpToSiInst : public Instruction {
 
   private:
-    FpToSiInst(Value *val, Type *ty, BasicBlock *bb);
+    FpToSiInst(Value *val, Type *ty, BasicBlock *bb, const std::string& name);
 
   public:
-    static FpToSiInst *create_fptosi(Value *val, Type *ty, BasicBlock *bb);
-    static FpToSiInst *create_fptosi_to_i32(Value *val, BasicBlock *bb);
+    static FpToSiInst *create_fptosi(Value *val, Type *ty, BasicBlock *bb, const std::string& name = "");
+    static FpToSiInst *create_fptosi_to_i32(Value *val, BasicBlock *bb, const std::string& name = "");
 
     Type *get_dest_type() const { return get_type(); }
 
@@ -315,10 +316,10 @@ class FpToSiInst : public Instruction {
 class SiToFpInst : public Instruction {
 
   private:
-    SiToFpInst(Value *val, Type *ty, BasicBlock *bb);
+    SiToFpInst(Value *val, Type *ty, BasicBlock *bb, const std::string& name);
 
   public:
-    static SiToFpInst *create_sitofp(Value *val, BasicBlock *bb);
+    static SiToFpInst *create_sitofp(Value *val, BasicBlock *bb, const std::string& name = "");
 
     Type *get_dest_type() const { return get_type(); }
 
@@ -329,13 +330,13 @@ class PhiInst : public Instruction {
 
   private:
     PhiInst(Type *ty, const std::vector<Value *>& vals,
-            const std::vector<BasicBlock *>& val_bbs, BasicBlock *bb);
+            const std::vector<BasicBlock *>& val_bbs, BasicBlock *bb, const std::string& name);
 
   public:
     // 新特性：指令表分为 {alloca, phi | other inst} 两段，创建和向基本块插入 alloca 和 phi，都只会插在第一段，它们在常规指令前面
     static PhiInst *create_phi(Type *ty, BasicBlock *bb,
                                const std::vector<Value *>& vals = {},
-                               const std::vector<BasicBlock *>& val_bbs = {});
+                               const std::vector<BasicBlock *>& val_bbs = {}, const std::string& name = "");
 
     void add_phi_pair_operand(Value *val, Value *pre_bb) {
         this->add_operand(val);
@@ -354,3 +355,5 @@ class PhiInst : public Instruction {
 
     std::string print() override;
 };
+
+extern Names GLOBAL_INSTRUCTION_NAMES_;

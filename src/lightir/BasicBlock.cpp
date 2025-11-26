@@ -7,9 +7,13 @@
 
 #include <cassert>
 
-BasicBlock::BasicBlock(Module *m, const std::string &name = "",
-                       Function *parent = nullptr)
-    : Value(m->get_label_type(), name), parent_(parent) {
+#include "Names.hpp"
+
+BasicBlock::BasicBlock(const Module* m, const std::string& name = "",
+    Function* parent = nullptr)
+    : Value(m->get_label_type(), 
+parent == nullptr ? GLOBAL_BASICBLOCK_NAMES_.get_name(name) : parent->names4blocks_.get_name(name))
+, parent_(parent) {
     assert(parent && "currently parent should not be nullptr");
     parent_->add_basic_block(this);
 }
@@ -105,12 +109,9 @@ std::string BasicBlock::print() {
 
 std::string BasicBlock::safe_print() const
 {
-    Function* parent = parent_;
-    auto parentName = ((parent != nullptr) ? parent->get_name() : "f<null>");
     auto name = get_name();
     if (name.empty()) name = "b" + ptr_to_str(this);
-    if (parentName.empty()) parentName = "f" + ptr_to_str(parent);
-    return parentName + ":" + name + " " + std::to_string(instr_list_.size()) + "inst pre " + std::to_string(pre_bbs_.size()) + "b suc " + std::to_string(succ_bbs_.size()) + "b";
+    return name + " " + std::to_string(instr_list_.size()) + "inst pre " + std::to_string(pre_bbs_.size()) + "b suc " + std::to_string(succ_bbs_.size()) + "b";
 }
 
 BasicBlock::~BasicBlock()
@@ -123,3 +124,5 @@ BasicBlock* BasicBlock::get_entry_block_of_same_function() const
 	assert(parent_ != nullptr && "bb have no parent function");
 	return parent_->get_entry_block();
 }
+
+Names GLOBAL_BASICBLOCK_NAMES_{false, "label", ""};

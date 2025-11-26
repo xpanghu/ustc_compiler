@@ -10,10 +10,14 @@
 #include <string>
 #include <vector>
 
-Instruction::Instruction(Type *ty, OpID id, BasicBlock *parent)
+Instruction::Instruction(Type *ty, OpID id, const std::string& name, BasicBlock *parent)
     : User(ty, ""), op_id_(id), parent_(parent) {
+    assert(ty != nullptr && "Instruction have null type");
+    assert(((!ty->is_void_type()) || name.empty()) && "Void Type Instruction should not have name");
     if (parent)
-        parent->add_instruction(this);
+	    parent->add_instruction(this);
+    if (!ty->is_void_type() && parent && parent->get_parent())
+        set_name(parent_->get_parent()->names4insts_.get_name(name));
 }
 
 Instruction::~Instruction() = default;
@@ -25,50 +29,50 @@ std::string Instruction::get_instr_op_name() const {
     return print_instr_op_name(op_id_);
 }
 
-IBinaryInst::IBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb)
-    : Instruction(bb->get_module()->get_int32_type(), id, bb) {
+IBinaryInst::IBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb, const std::string& name)
+    : Instruction(bb->get_module()->get_int32_type(), id, name, bb) {
     assert(v1->get_type()->is_int32_type() && v2->get_type()->is_int32_type() &&
            "IBinaryInst operands are not both i32");
     add_operand(v1);
     add_operand(v2);
 }
 
-IBinaryInst *IBinaryInst::create_add(Value *v1, Value *v2, BasicBlock *bb) {
-    return new IBinaryInst(add, v1, v2, bb);
+IBinaryInst *IBinaryInst::create_add(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new IBinaryInst(add, v1, v2, bb, name);
 }
-IBinaryInst *IBinaryInst::create_sub(Value *v1, Value *v2, BasicBlock *bb) {
-    return new IBinaryInst(sub, v1, v2, bb);
+IBinaryInst *IBinaryInst::create_sub(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new IBinaryInst(sub, v1, v2, bb, name);
 }
-IBinaryInst *IBinaryInst::create_mul(Value *v1, Value *v2, BasicBlock *bb) {
-    return new IBinaryInst(mul, v1, v2, bb);
+IBinaryInst *IBinaryInst::create_mul(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new IBinaryInst(mul, v1, v2, bb, name);
 }
-IBinaryInst *IBinaryInst::create_sdiv(Value *v1, Value *v2, BasicBlock *bb) {
-    return new IBinaryInst(sdiv, v1, v2, bb);
+IBinaryInst *IBinaryInst::create_sdiv(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new IBinaryInst(sdiv, v1, v2, bb, name);
 }
 
-FBinaryInst::FBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb)
-    : Instruction(bb->get_module()->get_float_type(), id, bb) {
+FBinaryInst::FBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb, const std::string& name)
+    : Instruction(bb->get_module()->get_float_type(), id, name, bb) {
     assert(v1->get_type()->is_float_type() && v2->get_type()->is_float_type() &&
            "FBinaryInst operands are not both float");
     add_operand(v1);
     add_operand(v2);
 }
 
-FBinaryInst *FBinaryInst::create_fadd(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FBinaryInst(fadd, v1, v2, bb);
+FBinaryInst *FBinaryInst::create_fadd(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FBinaryInst(fadd, v1, v2, bb, name);
 }
-FBinaryInst *FBinaryInst::create_fsub(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FBinaryInst(fsub, v1, v2, bb);
+FBinaryInst *FBinaryInst::create_fsub(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FBinaryInst(fsub, v1, v2, bb,name);
 }
-FBinaryInst *FBinaryInst::create_fmul(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FBinaryInst(fmul, v1, v2, bb);
+FBinaryInst *FBinaryInst::create_fmul(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FBinaryInst(fmul, v1, v2, bb,name);
 }
-FBinaryInst *FBinaryInst::create_fdiv(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FBinaryInst(fdiv, v1, v2, bb);
+FBinaryInst *FBinaryInst::create_fdiv(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FBinaryInst(fdiv, v1, v2, bb,name);
 }
 
-ICmpInst::ICmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb)
-    : Instruction(bb->get_module()->get_int1_type(), id, bb) {
+ICmpInst::ICmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb, const std::string& name)
+    : Instruction(bb->get_module()->get_int1_type(), id,name, bb) {
     assert(lhs->get_type()->is_int32_type() &&
            rhs->get_type()->is_int32_type() &&
            "CmpInst operands are not both i32");
@@ -76,27 +80,27 @@ ICmpInst::ICmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb)
     add_operand(rhs);
 }
 
-ICmpInst *ICmpInst::create_ge(Value *v1, Value *v2, BasicBlock *bb) {
-    return new ICmpInst(ge, v1, v2, bb);
+ICmpInst *ICmpInst::create_ge(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new ICmpInst(ge, v1, v2, bb, name);
 }
-ICmpInst *ICmpInst::create_gt(Value *v1, Value *v2, BasicBlock *bb) {
-    return new ICmpInst(gt, v1, v2, bb);
+ICmpInst *ICmpInst::create_gt(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new ICmpInst(gt, v1, v2, bb, name);
 }
-ICmpInst *ICmpInst::create_le(Value *v1, Value *v2, BasicBlock *bb) {
-    return new ICmpInst(le, v1, v2, bb);
+ICmpInst *ICmpInst::create_le(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new ICmpInst(le, v1, v2, bb, name);
 }
-ICmpInst *ICmpInst::create_lt(Value *v1, Value *v2, BasicBlock *bb) {
-    return new ICmpInst(lt, v1, v2, bb);
+ICmpInst *ICmpInst::create_lt(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new ICmpInst(lt, v1, v2, bb, name);
 }
-ICmpInst *ICmpInst::create_eq(Value *v1, Value *v2, BasicBlock *bb) {
-    return new ICmpInst(eq, v1, v2, bb);
+ICmpInst *ICmpInst::create_eq(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new ICmpInst(eq, v1, v2, bb, name);
 }
-ICmpInst *ICmpInst::create_ne(Value *v1, Value *v2, BasicBlock *bb) {
-    return new ICmpInst(ne, v1, v2, bb);
+ICmpInst *ICmpInst::create_ne(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new ICmpInst(ne, v1, v2, bb, name);
 }
 
-FCmpInst::FCmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb)
-    : Instruction(bb->get_module()->get_int1_type(), id, bb) {
+FCmpInst::FCmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb, const std::string& name)
+    : Instruction(bb->get_module()->get_int1_type(), id, name, bb) {
     assert(lhs->get_type()->is_float_type() &&
            rhs->get_type()->is_float_type() &&
            "FCmpInst operands are not both float");
@@ -104,27 +108,27 @@ FCmpInst::FCmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb)
     add_operand(rhs);
 }
 
-FCmpInst *FCmpInst::create_fge(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FCmpInst(fge, v1, v2, bb);
+FCmpInst *FCmpInst::create_fge(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FCmpInst(fge, v1, v2, bb, name);
 }
-FCmpInst *FCmpInst::create_fgt(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FCmpInst(fgt, v1, v2, bb);
+FCmpInst *FCmpInst::create_fgt(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FCmpInst(fgt, v1, v2, bb, name);
 }
-FCmpInst *FCmpInst::create_fle(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FCmpInst(fle, v1, v2, bb);
+FCmpInst *FCmpInst::create_fle(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FCmpInst(fle, v1, v2, bb, name);
 }
-FCmpInst *FCmpInst::create_flt(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FCmpInst(flt, v1, v2, bb);
+FCmpInst *FCmpInst::create_flt(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FCmpInst(flt, v1, v2, bb, name);
 }
-FCmpInst *FCmpInst::create_feq(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FCmpInst(feq, v1, v2, bb);
+FCmpInst *FCmpInst::create_feq(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FCmpInst(feq, v1, v2, bb, name);
 }
-FCmpInst *FCmpInst::create_fne(Value *v1, Value *v2, BasicBlock *bb) {
-    return new FCmpInst(fne, v1, v2, bb);
+FCmpInst *FCmpInst::create_fne(Value *v1, Value *v2, BasicBlock *bb, const std::string& name) {
+    return new FCmpInst(fne, v1, v2, bb, name);
 }
 
-CallInst::CallInst(Function *func, const std::vector<Value *>& args, BasicBlock *bb)
-    : Instruction(func->get_return_type(), call, bb) {
+CallInst::CallInst(Function *func, const std::vector<Value *>& args, BasicBlock *bb, const std::string& name)
+    : Instruction(func->get_return_type(), call, name, bb) {
     assert(func->get_type()->is_function_type() && "Not a function");
     assert((func->get_num_of_args() == args.size()) && "Wrong number of args");
     add_operand(func);
@@ -137,8 +141,8 @@ CallInst::CallInst(Function *func, const std::vector<Value *>& args, BasicBlock 
 }
 
 CallInst *CallInst::create_call(Function *func, const std::vector<Value *>& args,
-                                BasicBlock *bb) {
-    return new CallInst(func, args, bb);
+                                BasicBlock *bb, const std::string& name) {
+    return new CallInst(func, args, bb, name);
 }
 
 FunctionType *CallInst::get_function_type() const {
@@ -147,7 +151,7 @@ FunctionType *CallInst::get_function_type() const {
 
 BranchInst::BranchInst(Value *cond, BasicBlock *if_true, BasicBlock *if_false,
                        BasicBlock *bb)
-    : Instruction(bb->get_module()->get_void_type(), br, bb) {
+    : Instruction(bb->get_module()->get_void_type(), br, "", bb) {
     if (cond == nullptr) { // conditionless jump
         assert(if_false == nullptr && "Given false-bb on conditionless jump");
         add_operand(if_true);
@@ -194,7 +198,7 @@ BranchInst *BranchInst::create_br(BasicBlock *if_true, BasicBlock *bb) {
 }
 
 ReturnInst::ReturnInst(Value *val, BasicBlock *bb)
-    : Instruction(bb->get_module()->get_void_type(), ret, bb) {
+    : Instruction(bb->get_module()->get_void_type(), ret, "", bb) {
     if (val == nullptr) {
         assert(bb->get_parent()->get_return_type()->is_void_type());
     } else {
@@ -216,9 +220,9 @@ ReturnInst *ReturnInst::create_void_ret(BasicBlock *bb) {
 bool ReturnInst::is_void_ret() const { return get_num_operand() == 0; }
 
 GetElementPtrInst::GetElementPtrInst(Value *ptr, const std::vector<Value *>& idxs,
-                                     BasicBlock *bb)
+                                     BasicBlock *bb, const std::string& name)
     : Instruction(PointerType::get(get_element_type(ptr, idxs)),
-                                  getelementptr, bb) {
+                                  getelementptr, name, bb) {
     add_operand(ptr);
     for (auto idx : idxs)
     {
@@ -228,7 +232,7 @@ GetElementPtrInst::GetElementPtrInst(Value *ptr, const std::vector<Value *>& idx
 }
 
 Type *GetElementPtrInst::get_element_type(const Value *ptr,
-                                          const std::vector<Value *>& idxs) {
+                                          const std::vector<Value *>& idxs, const std::string& name) {
     assert(ptr->get_type()->is_pointer_type() &&
            "GetElementPtrInst ptr is not a pointer");
 
@@ -257,12 +261,12 @@ Type *GetElementPtrInst::get_element_type() const {
 
 GetElementPtrInst *GetElementPtrInst::create_gep(Value *ptr,
                                                  const std::vector<Value *>& idxs,
-                                                 BasicBlock *bb) {
-    return new GetElementPtrInst(ptr, idxs, bb);
+                                                 BasicBlock *bb, const std::string& name) {
+    return new GetElementPtrInst(ptr, idxs, bb, name);
 }
 
 StoreInst::StoreInst(Value *val, Value *ptr, BasicBlock *bb)
-    : Instruction(bb->get_module()->get_void_type(), store, bb) {
+    : Instruction(bb->get_module()->get_void_type(), store, "", bb) {
     assert((ptr->get_type()->get_pointer_element_type() == val->get_type()) &&
            "StoreInst ptr is not a pointer to val type");
     add_operand(val);
@@ -273,8 +277,8 @@ StoreInst *StoreInst::create_store(Value *val, Value *ptr, BasicBlock *bb) {
     return new StoreInst(val, ptr, bb);
 }
 
-LoadInst::LoadInst(Value *ptr, BasicBlock *bb)
-    : Instruction(ptr->get_type()->get_pointer_element_type(), load,
+LoadInst::LoadInst(Value *ptr, BasicBlock *bb, const std::string& name)
+    : Instruction(ptr->get_type()->get_pointer_element_type(), load, name,
                          bb) {
     assert((get_type()->is_integer_type() or get_type()->is_float_type() or
             get_type()->is_pointer_type()) &&
@@ -282,12 +286,12 @@ LoadInst::LoadInst(Value *ptr, BasicBlock *bb)
     add_operand(ptr);
 }
 
-LoadInst *LoadInst::create_load(Value *ptr, BasicBlock *bb) {
-    return new LoadInst(ptr, bb);
+LoadInst *LoadInst::create_load(Value *ptr, BasicBlock *bb, const std::string& name) {
+    return new LoadInst(ptr, bb, name);
 }
 
-AllocaInst::AllocaInst(Type *ty, BasicBlock *bb)
-    : Instruction(PointerType::get(ty), alloca, bb) {
+AllocaInst::AllocaInst(Type *ty, BasicBlock *bb, const std::string& name)
+    : Instruction(PointerType::get(ty), alloca, name, bb) {
     static constexpr std::array<Type::TypeID, 4> allowed_alloc_type = {
         Type::IntegerTyID, Type::FloatTyID, Type::ArrayTyID, Type::PointerTyID};
     assert(std::find(allowed_alloc_type.begin(), allowed_alloc_type.end(),
@@ -295,12 +299,12 @@ AllocaInst::AllocaInst(Type *ty, BasicBlock *bb)
            "Not allowed type for alloca");
 }
 
-AllocaInst *AllocaInst::create_alloca(Type *ty, BasicBlock *bb) {
-    return new AllocaInst(ty, bb);
+AllocaInst *AllocaInst::create_alloca(Type *ty, BasicBlock *bb, const std::string& name) {
+    return new AllocaInst(ty, bb, name);
 }
 
-ZextInst::ZextInst(Value *val, Type *ty, BasicBlock *bb)
-    : Instruction(ty, zext, bb) {
+ZextInst::ZextInst(Value *val, Type *ty, BasicBlock *bb, const std::string& name)
+    : Instruction(ty, zext, name, bb) {
     assert(val->get_type()->is_integer_type() &&
            "ZextInst operand is not integer");
     assert(ty->is_integer_type() && "ZextInst destination type is not integer");
@@ -311,15 +315,15 @@ ZextInst::ZextInst(Value *val, Type *ty, BasicBlock *bb)
     add_operand(val);
 }
 
-ZextInst *ZextInst::create_zext(Value *val, Type *ty, BasicBlock *bb) {
-    return new ZextInst(val, ty, bb);
+ZextInst *ZextInst::create_zext(Value *val, Type *ty, BasicBlock *bb, const std::string& name) {
+    return new ZextInst(val, ty, bb, name);
 }
-ZextInst *ZextInst::create_zext_to_i32(Value *val, BasicBlock *bb) {
-    return new ZextInst(val, bb->get_module()->get_int32_type(), bb);
+ZextInst *ZextInst::create_zext_to_i32(Value *val, BasicBlock *bb, const std::string& name) {
+    return new ZextInst(val, bb->get_module()->get_int32_type(), bb, name);
 }
 
-FpToSiInst::FpToSiInst(Value *val, Type *ty, BasicBlock *bb)
-    : Instruction(ty, fptosi, bb) {
+FpToSiInst::FpToSiInst(Value *val, Type *ty, BasicBlock *bb, const std::string& name)
+    : Instruction(ty, fptosi, name, bb) {
     assert(val->get_type()->is_float_type() &&
            "FpToSiInst operand is not float");
     assert(ty->is_integer_type() &&
@@ -327,28 +331,28 @@ FpToSiInst::FpToSiInst(Value *val, Type *ty, BasicBlock *bb)
     add_operand(val);
 }
 
-FpToSiInst *FpToSiInst::create_fptosi(Value *val, Type *ty, BasicBlock *bb) {
-    return new FpToSiInst(val, ty, bb);
+FpToSiInst *FpToSiInst::create_fptosi(Value *val, Type *ty, BasicBlock *bb, const std::string& name) {
+    return new FpToSiInst(val, ty, bb, name);
 }
-FpToSiInst *FpToSiInst::create_fptosi_to_i32(Value *val, BasicBlock *bb) {
-    return new FpToSiInst(val, bb->get_module()->get_int32_type(), bb);
+FpToSiInst *FpToSiInst::create_fptosi_to_i32(Value *val, BasicBlock *bb, const std::string& name) {
+    return new FpToSiInst(val, bb->get_module()->get_int32_type(), bb, name);
 }
 
-SiToFpInst::SiToFpInst(Value *val, Type *ty, BasicBlock *bb)
-    : Instruction(ty, sitofp, bb) {
+SiToFpInst::SiToFpInst(Value *val, Type *ty, BasicBlock *bb, const std::string& name)
+    : Instruction(ty, sitofp, name, bb) {
     assert(val->get_type()->is_integer_type() &&
            "SiToFpInst operand is not integer");
     assert(ty->is_float_type() && "SiToFpInst destination type is not float");
     add_operand(val);
 }
 
-SiToFpInst *SiToFpInst::create_sitofp(Value *val, BasicBlock *bb) {
-    return new SiToFpInst(val, bb->get_module()->get_float_type(), bb);
+SiToFpInst *SiToFpInst::create_sitofp(Value *val, BasicBlock *bb, const std::string& name) {
+    return new SiToFpInst(val, bb->get_module()->get_float_type(), bb, name);
 }
 
 PhiInst::PhiInst(Type *ty, const std::vector<Value *>& vals,
-                 const std::vector<BasicBlock *>& val_bbs, BasicBlock *bb)
-    : Instruction(ty, phi) {
+                 const std::vector<BasicBlock *>& val_bbs, BasicBlock *bb, const std::string& name)
+    : Instruction(ty, phi, name) {
     assert(vals.size() == val_bbs.size() && "Unmatched vals and bbs");
     for (unsigned i = 0; i < vals.size(); i++) {
         assert(ty == vals[i]->get_type() && "Bad type for phi");
@@ -360,6 +364,8 @@ PhiInst::PhiInst(Type *ty, const std::vector<Value *>& vals,
 
 PhiInst *PhiInst::create_phi(Type *ty, BasicBlock *bb,
                              const std::vector<Value *>& vals,
-                             const std::vector<BasicBlock *>& val_bbs) {
-    return new PhiInst(ty, vals, val_bbs, bb);
+                             const std::vector<BasicBlock *>& val_bbs, const std::string& name) {
+    return new PhiInst(ty, vals, val_bbs, bb, name);
 }
+
+Names GLOBAL_INSTRUCTION_NAMES_{ true, "op", "" };

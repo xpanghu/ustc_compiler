@@ -105,9 +105,9 @@ class IRBuilder {
         return LoadInst::create_load(ptr, this->BB_);
     }
 
-    AllocaInst *create_alloca(Type *ty) const
+    AllocaInst *create_alloca(Type *ty, const std::string& name = "") const
     {
-        return AllocaInst::create_alloca(ty, this->BB_->get_entry_block_of_same_function());
+        return AllocaInst::create_alloca(ty, this->BB_->get_entry_block_of_same_function(), name);
     }
 
     ZextInst *create_zext(Value *val, Type *ty) const

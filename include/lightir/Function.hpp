@@ -7,6 +7,8 @@
 #include <list>
 #include <memory>
 
+#include "Names.hpp"
+
 class Module;
 class Argument;
 class Type;
@@ -49,6 +51,11 @@ class Function : public Value {
 
     // 用于 lldb 调试生成 summary
     std::string safe_print() const;
+
+    // 用于给 basicblock 分配名称
+    Names names4blocks_;
+    Names names4insts_;
+
   private:
     std::list<BasicBlock*> basic_blocks_;
     std::list<Argument> arguments_;

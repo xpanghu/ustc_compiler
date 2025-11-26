@@ -81,11 +81,14 @@ class BasicBlock : public Value {
 
     // 用于 lldb 调试生成 summary
     std::string safe_print() const;
+
   private:
-    explicit BasicBlock(Module *m, const std::string &name, Function *parent);
+    explicit BasicBlock(const Module *m, const std::string &name, Function *parent);
 
     std::list<BasicBlock *> pre_bbs_;
     std::list<BasicBlock *> succ_bbs_;
     std::list<Instruction*> instr_list_;
     Function *parent_;
 };
+
+extern Names GLOBAL_BASICBLOCK_NAMES_;
