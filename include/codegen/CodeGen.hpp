@@ -8,16 +8,13 @@
 class CodeGen {
   public:
     explicit CodeGen(Module *module) : m(module) {}
-    ~CodeGen(){
-        for(auto i : output) delete i;
-    }
 
     std::string print() const;
 
     void run();
 
     template <class... Args> void append_inst(Args... arg) {
-        output.emplace_back(new ASMInstruction(arg...));
+        output.emplace_back(arg...);
     }
 
     void
@@ -29,7 +26,7 @@ class CodeGen {
         }
         content.pop_back();
         content.pop_back();
-        output.emplace_back(new ASMInstruction(content, ty));
+        output.emplace_back(content, ty);
     }
 
   private:
@@ -101,5 +98,5 @@ class CodeGen {
     } context;
 
     Module *m;
-    std::list<ASMInstruction*> output;
+    std::list<ASMInstruction> output;
 };

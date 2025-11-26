@@ -405,7 +405,7 @@ void CodeGen::run() {
     }
 
     // 函数代码段
-    output.emplace_back(new ASMInstruction(".text", ASMInstruction::Attribute));
+    output.emplace_back(".text", ASMInstruction::Attribute);
     for (auto func : m->get_functions()) {
         if (not func->is_declaration()) {
             // 更新 context
@@ -511,8 +511,8 @@ void CodeGen::run() {
 
 std::string CodeGen::print() const {
     std::string result;
-    for (const auto inst : output) {
-        result += inst->format();
+    for (const auto& inst : output) {
+        result += inst.format();
     }
     return result;
 }
