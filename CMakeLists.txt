@@ -2,6 +2,7 @@ cmake_minimum_required( VERSION 3.8 )
 include(CheckCXXCompilerFlag)
 
 project(CMINUSF)
+add_compile_definitions(_POSIX_C_SOURCE=200112L)
 
 set(CMAKE_C_FLAGS "${CMAKE_CXX_FLAGS} -std=c99")
 
