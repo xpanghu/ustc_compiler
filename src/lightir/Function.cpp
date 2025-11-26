@@ -159,21 +159,6 @@ void Function::check_for_block_relation_error() const
             assert((bbs.count(i)) && "函数 F 的基本块表中包含基本块 a, a 的前驱块表中的某基本块 b 不在 F 的基本块表中");
         }
     }
-    // 检查基本块的前驱和后继表不包含重复的基本块
-    /*
-	for (auto& bb : basic_blocks_)
-    {
-        bbs.clear();
-        for(auto suc: bb.get_succ_basic_blocks()){
-            assert((!bbs.count(suc)) && "基本块的后继表中包含重复项目");
-            bbs.emplace(suc);
-        }
-        for(auto suc: bb.get_pre_basic_blocks()){
-            assert((!bbs.count(suc)) && "基本块的前驱表中包含重复项目");
-            bbs.emplace(suc);
-        }
-    }
-	*/
     // 检查基本块基本信息
     for (auto bb : basic_blocks_)
     {

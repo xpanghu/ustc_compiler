@@ -15,12 +15,13 @@ public:
 
     Constant(Type *ty, const std::string &name = "") : User(ty, name) {}
     ~Constant() override;
+protected:
 };
 
 class ConstantInt : public Constant {
   private:
     int value_;
-    ConstantInt(Type *ty, int val) : Constant(ty, ""), value_(val) {}
+    ConstantInt(Type* ty, int val) : Constant(ty, ""), value_(val) {}
 
   public:
     int get_value() const { return value_; }

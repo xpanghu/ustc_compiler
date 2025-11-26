@@ -16,7 +16,10 @@
 			// 程序运行的目录
 			"cwd": "${workspaceFolder}",
 			// 程序运行前运行的命令(例如 build)
-      		"preLaunchTask": "make cminusfc"
+			"preLaunchTask": "make cminusfc",
+			"initCommands": [
+				"command script import ${workspaceFolder}/lldb_formatters.py"
+			]
 		},
 		{
 			"type": "lldb",
@@ -32,7 +35,10 @@
 				"./build/1.cminus"
 			],
 			// 程序运行的目录
-			"cwd": "${workspaceFolder}"
+			"cwd": "${workspaceFolder}",
+			"initCommands": [
+				"command script import ${workspaceFolder}/lldb_formatters.py"
+			]
 		}
 	]
 }

@@ -112,14 +112,16 @@ std::string Type::print() const {
 }
 
 IntegerType::IntegerType(unsigned num_bits, Module *m)
-    : Type(Type::IntegerTyID, m), num_bits_(num_bits) {}
+    : Type(Type::IntegerTyID, m), num_bits_(num_bits)
+{
+}
 
 IntegerType::~IntegerType() = default;
 
 unsigned IntegerType::get_num_bits() const { return num_bits_; }
 
 FunctionType::FunctionType(Type *result, const std::vector<Type *>& params)
-    : Type(Type::FunctionTyID, nullptr) {
+    : Type(Type::FunctionTyID, result->get_module()) {
     assert(is_valid_return_type(result) && "Invalid return type for function!");
     result_ = result;
 
@@ -171,7 +173,7 @@ ArrayType *ArrayType::get(Type *contained, unsigned num_elements) {
 
 PointerType::PointerType(Type *contained)
     : Type(Type::PointerTyID, contained->get_module()), contained_(contained) {
-    static constexpr std::array allowed_elem_type = {
+    static constexpr std::array<Type::TypeID, 4> allowed_elem_type = {
         Type::IntegerTyID, Type::FloatTyID, Type::ArrayTyID, Type::PointerTyID};
     auto elem_type_id = contained->get_type_id();
     assert(std::find(allowed_elem_type.begin(), allowed_elem_type.end(),
@@ -185,7 +187,8 @@ PointerType *PointerType::get(Type *contained) {
     return contained->get_module()->get_pointer_type(contained);
 }
 
-FloatType::FloatType(Module *m) : Type(Type::FloatTyID, m) {}
+FloatType::FloatType(Module *m) : Type(Type::FloatTyID, m) {
+}
 
 FloatType::~FloatType() = default;
 

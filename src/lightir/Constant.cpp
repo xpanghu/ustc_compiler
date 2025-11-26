@@ -34,16 +34,18 @@ Constant::~Constant() = default;
 ConstantInt *ConstantInt::get(int val, Module *m) {
     if (cached_int.find(std::make_pair(val, m)) != cached_int.end())
         return cached_int[std::make_pair(val, m)].get();
-    return (cached_int[std::make_pair(val, m)] = std::unique_ptr<ConstantInt>(
+    ConstantInt* ret = (cached_int[std::make_pair(val, m)] = std::unique_ptr<ConstantInt>(
                 new ConstantInt(m->get_int32_type(), val)))
         .get();
+    return ret;
 }
 ConstantInt *ConstantInt::get(bool val, Module *m) {
     if (cached_bool.find(std::make_pair(val, m)) != cached_bool.end())
         return cached_bool[std::make_pair(val, m)].get();
-    return (cached_bool[std::make_pair(val, m)] = std::unique_ptr<ConstantInt>(
+    auto ret = (cached_bool[std::make_pair(val, m)] = std::unique_ptr<ConstantInt>(
                 new ConstantInt(m->get_int1_type(), val ? 1 : 0)))
         .get();
+    return ret;
 }
 std::string ConstantInt::print() {
     std::string const_ir;
@@ -73,7 +75,8 @@ Constant *ConstantArray::get_element_value(int index) const
 
 ConstantArray *ConstantArray::get(ArrayType *ty,
                                   const std::vector<Constant *> &val) {
-    return new ConstantArray(ty, val);
+    auto ret =  new ConstantArray(ty, val);
+    return ret;
 }
 
 std::string ConstantArray::print() {
@@ -98,9 +101,10 @@ std::string ConstantArray::print() {
 ConstantFP *ConstantFP::get(float val, Module *m) {
     if (cached_float.find(std::make_pair(val, m)) != cached_float.end())
         return cached_float[std::make_pair(val, m)].get();
-    return (cached_float[std::make_pair(val, m)] = std::unique_ptr<ConstantFP>(
+    auto ret = (cached_float[std::make_pair(val, m)] = std::unique_ptr<ConstantFP>(
                 new ConstantFP(m->get_float_type(), val)))
         .get();
+    return ret;
 }
 
 std::string ConstantFP::print() {
@@ -116,7 +120,9 @@ std::string ConstantFP::print() {
 
 ConstantZero *ConstantZero::get(Type *ty, Module *m) {
     if (not cached_zero[ty])
-        cached_zero[ty] = std::unique_ptr<ConstantZero>(new ConstantZero(ty));
+    {
+	    cached_zero[ty] = std::unique_ptr<ConstantZero>(new ConstantZero(ty));
+    }
     return cached_zero[ty].get();
 }
 

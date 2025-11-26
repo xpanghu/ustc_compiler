@@ -4,3 +4,4 @@ build/
 out
 CMakePresets.json
 Folder.DotSettings.user
+.env
