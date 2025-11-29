@@ -1,7 +1,14 @@
+
 #include "Module.hpp"
+#include "PassManager.hpp"
 #include "ast.hpp"
 #include "cminusf_builder.hpp"
 #include "CodeGen.hpp"
+#include "PassManager.hpp"
+#include "DeadCode.hpp"
+#include "Mem2Reg.hpp"
+#include "LoopDetection.hpp"
+#include "LICM.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -19,6 +26,9 @@ struct Config {
     bool emitast{false};
     bool emitasm{false};
     bool emitllvm{false};
+    // optization conifg
+    bool mem2reg{false};
+    bool licm{false};
 
     Config(int argc, char **argv) : argc(argc), argv(argv) {
         parse_cmd_line();
@@ -51,6 +61,19 @@ int main(int argc, char **argv) {
         ast.run_visitor(builder);
         m = builder.getModule();
 
+        PassManager PM(m);
+        // optimization 
+        if(config.mem2reg) {
+            PM.add_pass<DeadCode>();
+            PM.add_pass<Mem2Reg>();
+            PM.add_pass<DeadCode>();
+        }
+        if(config.licm) {
+            PM.add_pass<LoopInvariantCodeMotion>();
+            PM.add_pass<DeadCode>();
+        }
+        PM.run();
+
         std::ofstream output_stream(config.output_file);
         if (config.emitllvm) {
             auto abs_path = std::filesystem::canonical(config.input_file);
@@ -63,9 +86,7 @@ int main(int argc, char **argv) {
             output_stream << codegen.print();
         }
 
-        delete m;
-
-        // TODO: lab4 (IR optimization or codegen)
+		delete m;
     }
 
     return 0;
@@ -89,7 +110,11 @@ void Config::parse_cmd_line() {
             emitasm = true;
         } else if (argv[i] == "-emit-llvm"s) {
             emitllvm = true;
-        } else {
+        } else if (argv[i] == "-mem2reg"s) {
+            mem2reg = true;
+        } else if (argv[i] == "-licm"s) {
+            licm = true;
+        }else {
             if (input_file.empty()) {
                 input_file = argv[i];
             } else {
@@ -108,14 +133,29 @@ void Config::check() {
     if (input_file.extension() != ".cminus") {
         print_err("file format not recognized");
     }
+    if (emitllvm and emitasm) {
+        print_err("emit llvm and emit asm both set");
+    }
+    if (not emitllvm and not emitasm and not emitast) {
+        print_err("not supported: generate executable file directly");
+    }
+    if (licm and not mem2reg) {
+        print_err("licm must be used with mem2reg");
+    }
     if (output_file.empty()) {
         output_file = input_file.stem();
+        if (emitllvm) {
+            output_file.replace_extension(".ll");
+        } else if (emitasm) {
+            output_file.replace_extension(".s");
+        }
     }
 }
 
 void Config::print_help() const {
     std::cout << "Usage: " << exe_name
-              << " [-h|--help] [-o <target-file>] [-emit-ast] [-emit-llvm] [-S] "
+              << " [-h|--help] [-o <target-file>] [-emit-llvm] [-S] [-dump-json]"
+                 "[-mem2reg] [-licm]"
                  "<input-file>"
               << std::endl;
     exit(0);

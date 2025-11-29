@@ -67,7 +67,7 @@ void Function::add_basic_block(BasicBlock* bb) { basic_blocks_.push_back(bb); }
 
 void Function::set_instr_name() {
     std::map<Value*, int> seq;
-    for (auto& arg : this->get_args()) {
+    for (auto arg : this->get_args()) {
         if (seq.find(arg) == seq.end()) {
             auto seq_num = seq.size() + seq_cnt_;
             if (arg->set_name("arg" + std::to_string(seq_num))) {
@@ -120,7 +120,7 @@ std::string Function::print() {
         }
     }
     else {
-        for (auto& arg : get_args()) {
+        for (auto arg : get_args()) {
             if (&arg != &*get_args().begin())
                 func_ir += ", ";
             func_ir += arg->print();

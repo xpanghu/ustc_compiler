@@ -53,6 +53,7 @@ INCLUDE_DIRECTORIES(
     include/common
     include/lightir
     include/codegen
+    include/passes
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
