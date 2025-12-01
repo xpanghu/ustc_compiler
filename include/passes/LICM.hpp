@@ -1,23 +1,24 @@
+#pragma once
+
 #include "FuncInfo.hpp"
 #include "LoopDetection.hpp"
 #include "PassManager.hpp"
-#include <memory>
-#include <unordered_map>
 
-class LoopInvariantCodeMotion : public Pass {
+class LoopInvariantCodeMotion : public TransformPass {
   public:
-    LoopInvariantCodeMotion(Module *m) : Pass(m) {}
-    ~LoopInvariantCodeMotion() = default;
+    LoopInvariantCodeMotion(Module *m) : TransformPass(m), loop_detection_(nullptr), func_info_(nullptr) {}
+    ~LoopInvariantCodeMotion() override = default;
 
     void run() override;
 
   private:
-    std::unordered_map<std::shared_ptr<Loop>, bool> is_loop_done_;
-    std::unique_ptr<LoopDetection> loop_detection_;
-    std::unique_ptr<FuncInfo> func_info_;
-    void traverse_loop(std::shared_ptr<Loop> loop);
-    void run_on_loop(std::shared_ptr<Loop> loop);
-    void collect_loop_info(std::shared_ptr<Loop> loop,
+    LoopDetection* loop_detection_;
+    FuncInfo* func_info_;
+    std::unordered_set<Value*> collect_loop_store_vars(Loop* loop);
+    std::vector<Instruction*> collect_insts(Loop* loop);
+    void traverse_loop(Loop* loop);
+    void run_on_loop(Loop* loop);
+    void collect_loop_info(Loop* loop,
                           std::set<Value *> &loop_instructions,
                           std::set<Value *> &updated_global,
                           bool &contains_impure_call);

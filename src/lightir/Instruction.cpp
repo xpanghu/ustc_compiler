@@ -368,4 +368,15 @@ PhiInst *PhiInst::create_phi(Type *ty, BasicBlock *bb,
     return new PhiInst(ty, vals, val_bbs, bb, name);
 }
 
+std::vector<std::pair<Value*, BasicBlock*>> PhiInst::get_phi_pairs() const
+{
+    std::vector<std::pair<Value*, BasicBlock*>> res;
+    int ops = static_cast<int>(get_num_operand());
+    for (int i = 0; i < ops; i += 2) {
+        auto bb = dynamic_cast<BasicBlock*>(this->get_operand(i + 1));
+        res.emplace_back(this->get_operand(i), bb);
+    }
+    return res;
+}
+
 Names GLOBAL_INSTRUCTION_NAMES_{"op", "_" };

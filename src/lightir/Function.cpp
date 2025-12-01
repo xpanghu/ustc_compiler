@@ -121,7 +121,7 @@ std::string Function::print() {
     }
     else {
         for (auto arg : get_args()) {
-            if (&arg != &*get_args().begin())
+            if (arg != get_args().front())
                 func_ir += ", ";
             func_ir += arg->print();
         }

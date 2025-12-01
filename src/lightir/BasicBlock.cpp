@@ -77,6 +77,27 @@ void BasicBlock::add_instr_before_terminator(Instruction* instr) {
     else instr_list_.insert(std::prev(instr_list_.end()), instr);
 }
 
+void BasicBlock::erase_instrs(const std::set<Instruction*>& instr)
+{
+    std::list<Instruction*> ok;
+    for (auto i : instr_list_)
+    {
+        if (!instr.count(i)) ok.emplace_back(i);
+    }
+    instr_list_ = std::move(ok);
+    for (auto i : instr) delete i;
+}
+
+void BasicBlock::remove_instrs(const std::set<Instruction*>& instr)
+{
+    std::list<Instruction*> ok;
+    for (auto i : instr_list_)
+    {
+        if (!instr.count(i)) ok.emplace_back(i);
+    }
+    instr_list_ = std::move(ok);
+}
+
 std::string BasicBlock::print() {
     std::string bb_ir;
     bb_ir += this->get_name();

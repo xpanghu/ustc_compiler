@@ -1,18 +1,17 @@
 #pragma once
-#include "Dominators.hpp"
-#include "PassManager.hpp"
-#include <memory>
+
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include "Dominators.hpp"
+#include "PassManager.hpp"
 
 class BasicBlock;
 class Dominators;
 class Function;
 class Module;
 
-using BBset = std::set<BasicBlock *>;
-using BBvec = std::vector<BasicBlock *>;
 class Loop {
   private:
     // attribute:
@@ -20,9 +19,9 @@ class Loop {
     BasicBlock *preheader_ = nullptr;
     BasicBlock *header_;
 
-    std::shared_ptr<Loop> parent_ = nullptr;
-    BBvec blocks_;
-    std::vector<std::shared_ptr<Loop>> sub_loops_;
+    Loop* parent_ = nullptr;
+    std::vector<BasicBlock*> blocks_;
+    std::vector<Loop*> sub_loops_;
     
     std::unordered_set<BasicBlock *> latches_;
   public:
@@ -31,34 +30,31 @@ class Loop {
     }
     ~Loop() = default;
     void add_block(BasicBlock *bb) { blocks_.push_back(bb); }
-    BasicBlock *get_header() { return header_; }
-    BasicBlock *get_preheader() { return preheader_; }
-    std::shared_ptr<Loop> get_parent() { return parent_; }
-    void set_parent(std::shared_ptr<Loop> parent) { parent_ = parent; }
+    BasicBlock *get_header() const { return header_; }
+    BasicBlock *get_preheader() const { return preheader_; }
+    Loop* get_parent() const { return parent_; }
+    void set_parent(Loop* parent) { parent_ = parent; }
     void set_preheader(BasicBlock *bb) { preheader_ = bb; }
-    void add_sub_loop(std::shared_ptr<Loop> loop) { sub_loops_.push_back(loop); }
-    const BBvec& get_blocks() { return blocks_; }
-    const std::vector<std::shared_ptr<Loop>>& get_sub_loops() { return sub_loops_; }
+    void add_sub_loop(Loop* loop) { sub_loops_.push_back(loop); }
+    const std::vector<BasicBlock*>& get_blocks() { return blocks_; }
+    const std::vector<Loop*>& get_sub_loops() { return sub_loops_; }
     const std::unordered_set<BasicBlock *>& get_latches() { return latches_; }
     void add_latch(BasicBlock *bb) { latches_.insert(bb); }
 };
 
-class LoopDetection : public Pass {
-  private:
-    Function *func_;
-    std::unique_ptr<Dominators> dominators_;
-    std::vector<std::shared_ptr<Loop>> loops_;
+class LoopDetection : public FunctionAnalysisPass {
+    Dominators* dominators_;
+    std::vector<Loop*> loops_;
     // map from header to loop
-    std::unordered_map<BasicBlock *, std::shared_ptr<Loop>> bb_to_loop_;
-    void discover_loop_and_sub_loops(BasicBlock *bb, BBset &latches,
-                                     std::shared_ptr<Loop> loop);
+    std::unordered_map<BasicBlock *, Loop*> bb_to_loop_;
+    void discover_loop_and_sub_loops(BasicBlock *bb, std::set<BasicBlock*>&latches,
+                                     Loop* loop);
 
   public:
-    LoopDetection(Module *m) : Pass(m) {}
-    ~LoopDetection() = default;
+    LoopDetection(Function *f) : FunctionAnalysisPass(f), dominators_(nullptr) { assert(!f->is_declaration() && "LoopDetection can not apply to function declaration." ); }
+    ~LoopDetection() override;
 
     void run() override;
-    void run_on_func(Function *f);
-    void print() ;
-    std::vector<std::shared_ptr<Loop>> &get_loops() { return loops_; }
+    void print() const;
+    std::vector<Loop*> &get_loops() { return loops_; }
 };

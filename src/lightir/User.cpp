@@ -16,7 +16,7 @@ void User::set_operand(unsigned i, Value *v) {
 }
 
 void User::add_operand(Value *v) {
-    assert(v != nullptr && "bad use: add_operand(nullptr)");
+    if (v == nullptr) return;
     v->add_use(this, static_cast<unsigned>(operands_.size()));
     operands_.push_back(v);
 }
@@ -34,10 +34,14 @@ void User::remove_operand(unsigned idx) {
     assert(idx < operands_.size() && "remove_operand out of index");
     // influence on other operands
     for (unsigned i = idx + 1; i < operands_.size(); ++i) {
-        operands_[i]->remove_use(this, i);
-        operands_[i]->add_use(this, i - 1);
+        if (operands_[i])
+        {
+            operands_[i]->remove_use(this, i);
+            operands_[i]->add_use(this, i - 1);
+        }
     }
     // remove the designated operand
-    operands_[idx]->remove_use(this, idx);
+    if (operands_[idx])
+		operands_[idx]->remove_use(this, idx);
     operands_.erase(operands_.begin() + idx);
 }

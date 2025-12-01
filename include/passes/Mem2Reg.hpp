@@ -1,41 +1,33 @@
 #pragma once
 
+#include <map>
+
 #include "Dominators.hpp"
 #include "Instruction.hpp"
 #include "Value.hpp"
 
-#include <map>
-#include <memory>
-
-class Mem2Reg : public Pass {
+class Mem2Reg : public TransformPass {
   private:
+    // 当前函数
     Function *func_;
-    std::unique_ptr<Dominators> dominators_;
-    std::map<Value *, Value *> phi_map;
+    // 当前函数对应的支配树
+    Dominators* dominators_;
     // TODO 添加需要的变量
 
+    // 所有需要处理的变量
+    std::list<AllocaInst*> allocas_;
     // 变量定值栈
-    std::map<Value *, std::vector<Value *>> var_val_stack;
-    // phi指令对应的左值(地址)
-    std::map<PhiInst *, Value *> phi_lval;
-
+    std::map<AllocaInst*, std::vector<Value *>> var_val_stack;
+    // Phi 对应的局部变量
+    std::map<PhiInst *, AllocaInst*> phi_to_alloca_;
+    // 在某个基本块的 Phi
+    std::map<BasicBlock*, std::list<PhiInst*>> bb_to_phi_;
   public:
-    Mem2Reg(Module *m) : Pass(m) {}
-    ~Mem2Reg() = default;
+    Mem2Reg(Module *m) : TransformPass(m), func_(nullptr), dominators_(nullptr) {}
+    ~Mem2Reg() override = default;
 
     void run() override;
 
     void generate_phi();
     void rename(BasicBlock *bb);
-
-    static inline bool is_global_variable(Value *l_val) {
-        return dynamic_cast<GlobalVariable *>(l_val) != nullptr;
-    }
-    static inline bool is_gep_instr(Value *l_val) {
-        return dynamic_cast<GetElementPtrInst *>(l_val) != nullptr;
-    }
-
-    static inline bool is_valid_ptr(Value *l_val) {
-        return not is_global_variable(l_val) and not is_gep_instr(l_val);
-    }
 };

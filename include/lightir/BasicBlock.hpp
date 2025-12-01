@@ -4,6 +4,7 @@
 #include "Value.hpp"
 
 #include <list>
+#include <set>
 #include <string>
 
 class Function;
@@ -64,8 +65,12 @@ class BasicBlock : public Value {
 
     // 从 BasicBlock 移除 Instruction，并 delete 这个 Instruction
     void erase_instr(Instruction* instr) { instr_list_.remove(instr); delete instr; }
+    // 从 BasicBlock 移除集合中的 Instruction，并 delete 这些 Instruction
+    void erase_instrs(const std::set<Instruction*>& instr);
     // 从 BasicBlock 移除 Instruction，你需要自己 delete 它
     void remove_instr(Instruction *instr) { instr_list_.remove(instr); }
+    // 从 BasicBlock 移除集合中的 Instruction，你需要自己 delete 它们
+    void remove_instrs(const std::set<Instruction*>& instr);
 
     // 移除的 Instruction 需要自己 delete
     std::list<Instruction*> &get_instructions() { return instr_list_; }

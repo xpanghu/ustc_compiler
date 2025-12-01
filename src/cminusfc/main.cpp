@@ -64,13 +64,12 @@ int main(int argc, char **argv) {
         PassManager PM(m);
         // optimization 
         if(config.mem2reg) {
-            PM.add_pass<DeadCode>();
             PM.add_pass<Mem2Reg>();
-            PM.add_pass<DeadCode>();
+            PM.add_pass<DeadCode>(false);
         }
         if(config.licm) {
             PM.add_pass<LoopInvariantCodeMotion>();
-            PM.add_pass<DeadCode>();
+            PM.add_pass<DeadCode>(false);
         }
         PM.run();
 

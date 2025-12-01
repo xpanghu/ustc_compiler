@@ -1,35 +1,39 @@
 #pragma once
 
-#include "BasicBlock.hpp"
-#include "PassManager.hpp"
-
 #include <map>
 #include <set>
 
-class Dominators : public Pass {
+#include "BasicBlock.hpp"
+#include "PassManager.hpp"
+
+
+/**
+ * 分析 Pass, 获得某函数的支配树信息
+ *
+ * 由于它是针对某一特定 Function 的分析 Pass, 你无法通过 m_ 获取 Module, 但可以通过 f_ 获取 Function 
+ */
+class Dominators : public FunctionAnalysisPass {
   public:
-    using BBSet = std::set<BasicBlock *>;
 
-    explicit Dominators(Module *m) : Pass(m) {}
-    ~Dominators() = default;
+    explicit Dominators(Function* f) : FunctionAnalysisPass(f) { assert(!f->is_declaration() && "Dominators can not apply to function declaration."); }
+    ~Dominators() override = default;
     void run() override;
-    void run_on_func(Function *f);
 
-    // functions for getting information
-    BasicBlock *get_idom(BasicBlock *bb) { return idom_.at(bb); }
-    const BBSet &get_dominance_frontier(BasicBlock *bb) {
+    // 获取基本块的直接支配节点
+    BasicBlock *get_idom(const BasicBlock *bb) const { return idom_.at(bb); }
+    const std::set<BasicBlock*> &get_dominance_frontier(const BasicBlock *bb) {
         return dom_frontier_.at(bb);
     }
-    const BBSet &get_dom_tree_succ_blocks(BasicBlock *bb) {
+    const std::set<BasicBlock*> &get_dom_tree_succ_blocks(const BasicBlock *bb) {
         return dom_tree_succ_blocks_.at(bb);
     }
 
     // print cfg or dominance tree
-    void dump_cfg(Function *f);
-    void dump_dominator_tree(Function *f);
+    void dump_cfg() const;
+    void dump_dominator_tree();
 
     // functions for dominance tree
-    const bool is_dominate(BasicBlock *bb1, BasicBlock *bb2) {
+    bool is_dominate(const BasicBlock *bb1, const BasicBlock *bb2) const {
         return dom_tree_L_.at(bb1) <= dom_tree_L_.at(bb2) &&
                dom_tree_R_.at(bb1) >= dom_tree_L_.at(bb2);
     }
@@ -45,42 +49,38 @@ class Dominators : public Pass {
   private:
 
     void dfs(BasicBlock *bb, std::set<BasicBlock *> &visited);
-    void create_idom(Function *f);
-    void create_dominance_frontier(Function *f);
-    void create_dom_tree_succ(Function *f);
-    void create_dom_dfs_order(Function *f);
+    void create_idom();
+    void create_dominance_frontier();
+    void create_dom_tree_succ();
+    void create_dom_dfs_order();
 
-    BasicBlock * intersect(BasicBlock *b1, BasicBlock *b2);
+    BasicBlock * intersect(BasicBlock *b1, const BasicBlock *b2) const;
 
-    void create_reverse_post_order(Function *f);
-    void set_idom(BasicBlock *bb, BasicBlock *idom) { idom_[bb] = idom; }
-    void set_dominance_frontier(BasicBlock *bb, BBSet &df) {
+    void create_reverse_post_order();
+    void set_idom(const BasicBlock *bb, BasicBlock *idom) { idom_[bb] = idom; }
+    void set_dominance_frontier(const BasicBlock *bb, std::set<BasicBlock*>&df) {
         dom_frontier_[bb].clear();
         dom_frontier_[bb].insert(df.begin(), df.end());
     }
-    void add_dom_tree_succ_block(BasicBlock *bb, BasicBlock *dom_tree_succ_bb) {
+    void add_dom_tree_succ_block(const BasicBlock *bb, BasicBlock *dom_tree_succ_bb) {
         dom_tree_succ_blocks_[bb].insert(dom_tree_succ_bb);
     }
-    unsigned int get_post_order(BasicBlock *bb) {
+    unsigned int get_post_order(const BasicBlock *bb) const {
         return post_order_.at(bb);
     }
     // for debug
-    void print_idom(Function *f);
-    void print_dominance_frontier(Function *f);
-
-    // TODO 补充需要的函数
-    std::list<BasicBlock *> reverse_post_order_{};
-    std::map<BasicBlock *, int> post_order_id_{}; // the root has highest ID
+    void print_idom() const;
+    void print_dominance_frontier();
 
     std::vector<BasicBlock *> post_order_vec_{}; // 逆后序
-    std::map<BasicBlock *, unsigned int> post_order_{}; // 逆后序
-    std::map<BasicBlock *, BasicBlock *> idom_{};  // 直接支配
-    std::map<BasicBlock *, BBSet> dom_frontier_{}; // 支配边界集合
-    std::map<BasicBlock *, BBSet> dom_tree_succ_blocks_{}; // 支配树中的后继节点
+    std::map<const BasicBlock *, unsigned int> post_order_{}; // 逆后序
+    std::map<const BasicBlock *, BasicBlock *> idom_{};  // 直接支配
+    std::map<const BasicBlock *, std::set<BasicBlock*>> dom_frontier_{}; // 支配边界集合
+    std::map<const BasicBlock *, std::set<BasicBlock*>> dom_tree_succ_blocks_{}; // 支配树中的后继节点
 
     // 支配树上的dfs序L,R
-    std::map<BasicBlock *, unsigned int> dom_tree_L_;
-    std::map<BasicBlock *, unsigned int> dom_tree_R_;
+    std::map<const BasicBlock *, unsigned int> dom_tree_L_;
+    std::map<const BasicBlock *, unsigned int> dom_tree_R_;
 
     std::vector<BasicBlock *> dom_dfs_order_;
     std::vector<BasicBlock *> dom_post_order_;

@@ -1,8 +1,15 @@
 #include "Mem2Reg.hpp"
+
 #include "IRBuilder.hpp"
 #include "Value.hpp"
 
-#include <memory>
+
+// l_val 是否是非数组 alloca 变量
+static bool is_not_array_alloca(Value* l_val)
+{
+    auto alloca = dynamic_cast<AllocaInst*>(l_val);
+    return alloca != nullptr && !alloca->get_alloca_type()->is_array_type();
+}
 
 /**
  * @brief Mem2Reg Pass的主入口函数
@@ -18,23 +25,30 @@
  * 注意：函数执行后，冗余的局部变量分配指令将由后续的死代码删除Pass处理
  */
 void Mem2Reg::run() {
-    // 创建支配树分析 Pass 的实例
-    dominators_ = std::make_unique<Dominators>(m_);
-    // 建立支配树
-    dominators_->run();
     // 以函数为单元遍历实现 Mem2Reg 算法
     for (auto f : m_->get_functions()) {
         if (f->is_declaration())
             continue;
         func_ = f;
+        // 创建 func_ 支配树
+        dominators_ = new Dominators(func_);
+        // 建立支配树
+        dominators_->run();
+        allocas_.clear();
         var_val_stack.clear();
-        phi_lval.clear();
-        if (func_->get_basic_blocks().size() >= 1) {
+        phi_to_alloca_.clear();
+        bb_to_phi_.clear();
+        if (!func_->get_basic_blocks().empty()) {
             // 对应伪代码中 phi 指令插入的阶段
             generate_phi();
+            // 确保每个局部变量的栈都有初始值
+            for (auto var : allocas_)
+                var_val_stack[var].emplace_back(ConstantZero::get(var->get_alloca_type(), m_));
             // 对应伪代码中重命名阶段
             rename(func_->get_entry_block());
         }
+        delete dominators_;
+        dominators_ = nullptr;
         // 后续 DeadCode 将移除冗余的局部变量的分配空间
     }
 }
@@ -55,34 +69,41 @@ void Mem2Reg::run() {
  * phi指令的插入遵循最小化原则，只在必要的位置插入phi节点
  */
 void Mem2Reg::generate_phi() {
-    // global_live_var_name 是全局名字集合，以 alloca 出的局部变量来统计。
-    // 步骤一：找到活跃在多个 block 的全局名字集合，以及它们所属的 bb 块
-    std::set<Value *> global_live_var_name;
-    std::map<Value *, std::set<BasicBlock *>> live_var_2blocks;
+    // 步骤一：找到活跃在多个 block 的名字集合，以及它们所属的 bb 块
+
+    // global_live_var_name 包括函数中所有非数组 alloca 变量
+    std::set<AllocaInst *> not_array_allocas;
+    // 每个 alloca 在什么基本块被 store (可能重复)
+    std::map<AllocaInst*, std::list<BasicBlock *>> allocas_stored_bbs;
     for (auto bb : func_->get_basic_blocks()) {
-        std::set<Value *> var_is_killed;
         for (auto instr : bb->get_instructions()) {
             if (instr->is_store()) {
                 // store i32 a, i32 *b
                 // a is r_val, b is l_val
-                auto l_val = static_cast<StoreInst *>(instr)->get_lval();
-                if (is_valid_ptr(l_val)) {
-                    global_live_var_name.insert(l_val);
-                    live_var_2blocks[l_val].insert(bb);
+                auto l_val = dynamic_cast<StoreInst *>(instr)->get_lval();
+                if (is_not_array_alloca(l_val)) {
+                    auto lalloca = dynamic_cast<AllocaInst*>(instr);
+                    not_array_allocas.insert(lalloca);
+                    allocas_.emplace_back(lalloca);
+                    allocas_stored_bbs[lalloca].emplace_back(bb);
                 }
             }
         }
     }
 
     // 步骤二：从支配树获取支配边界信息，并在对应位置插入 phi 指令
-    std::map<std::pair<BasicBlock *, Value *>, bool>
-        bb_has_var_phi; // bb has phi for var
-    for (auto var : global_live_var_name) {
+
+    // 基本块是否已经有了对特定 alloca 变量的 phi
+    std::set<std::pair<BasicBlock *, AllocaInst *>> bb_has_var_phi;
+    for (auto var : not_array_allocas) {
         std::vector<BasicBlock *> work_list;
-        work_list.assign(live_var_2blocks[var].begin(),
-                         live_var_2blocks[var].end());
+        std::set<BasicBlock*> already_handled;
+        work_list.assign(allocas_stored_bbs[var].begin(), allocas_stored_bbs[var].end());
         for (unsigned i = 0; i < work_list.size(); i++) {
             auto bb = work_list[i];
+            // 防止在同一基本块重复运行
+            if (already_handled.count(bb)) continue;
+            already_handled.emplace(bb);
             for (auto bb_dominance_frontier_bb :
                  dominators_->get_dominance_frontier(bb)) {
                 if (bb_has_var_phi.find({bb_dominance_frontier_bb, var}) ==
@@ -92,10 +113,11 @@ void Mem2Reg::generate_phi() {
                     auto phi = PhiInst::create_phi(
                         var->get_type()->get_pointer_element_type(),
                         bb_dominance_frontier_bb);
-                    phi_lval.emplace(phi, var);
+                    phi_to_alloca_.emplace(phi, var);
+                    bb_to_phi_[bb_dominance_frontier_bb].emplace_back(phi);
                     bb_dominance_frontier_bb->add_instr_begin(phi);
                     work_list.push_back(bb_dominance_frontier_bb);
-                    bb_has_var_phi[{bb_dominance_frontier_bb, var}] = true;
+                    bb_has_var_phi.emplace(bb_dominance_frontier_bb, var);
                 }
             }
         }
@@ -103,17 +125,23 @@ void Mem2Reg::generate_phi() {
 }
 
 void Mem2Reg::rename(BasicBlock *bb) {
-    std::vector<Instruction *> wait_delete;
+    // 可能用到的数据结构
+    // list<AllocaInst*> allocas_ 所有 Mem2Reg 需要消除的局部变量，用于遍历
+    // map<AllocaInst*,vector<Value *>> var_val_stack 每个局部变量的存储值栈，还未进行任何操作时已经存进去了 0，不会为空
+	// map<PhiInst *, AllocaInst*>; Phi 对应的局部变量
+	// map<BasicBlock*, list<PhiInst*>>; 在某个基本块的 Phi
+    // 可能用到的函数
+    // Value::replace_all_use_with(Value* a) 将所有用到 this 的指令对应 this 的操作数都替换为 a
+    // BasicBlock::erase_instrs(set<Instruction*>) 移除并 delete 列表中的指令
+
     // TODO
-    // 步骤一：将 phi 指令作为 lval 的最新定值，lval 即是为局部变量 alloca 出的地址空间
-    // 步骤二：用 lval 最新的定值替代对应的load指令
-    // 步骤三：将 store 指令的 rval，也即被存入内存的值，作为 lval 的最新定值
-    // 步骤四：为 lval 对应的 phi 指令参数补充完整
-    // 步骤五：对 bb 在支配树上的所有后继节点，递归执行 re_name 操作
-    // 步骤六：pop出 lval 的最新定值
-    
-    // 步骤七：清除冗余的指令
-    for (auto instr : wait_delete) {
-        bb->erase_instr(instr);
-    }
+    // 步骤一：对每个 alloca 非数组变量(局部变量), 在其存储值栈存入其当前的最新值(也就是目前的栈顶值)
+    // 步骤二：遍历基本块所有指令，执行操作并记录需要删除的 load/store/alloca 指令
+	// - 步骤三: 将 store 指令存储的值，作为其对应局部变量的最新值(更新栈顶)
+	// - 步骤四: 将 load 指令的所有使用替换为其读取的局部变量的最新值
+    // 步骤五：为所有后继块的 phi 添加参数
+    // 步骤六：对 bb 在支配树上的所有后继节点，递归执行 rename 操作
+    // 步骤七：pop 出所有局部变量的最新值
+    // 步骤八：删除需要删除的冗余指令
 }
+

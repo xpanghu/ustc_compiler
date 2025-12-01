@@ -342,16 +342,7 @@ class PhiInst : public Instruction {
         this->add_operand(val);
         this->add_operand(pre_bb);
     }
-    std::vector<std::pair<Value *, BasicBlock *>> get_phi_pairs() const
-    {
-        std::vector<std::pair<Value *, BasicBlock *>> res;
-        int ops = static_cast<int>(get_num_operand());
-        for (int i = 0; i < ops; i += 2) {
-            res.emplace_back(this->get_operand(i),
-                             this->get_operand(i + 1)->as<BasicBlock>());
-        }
-        return res;
-    }
+    std::vector<std::pair<Value*, BasicBlock*>> get_phi_pairs() const;
 
     std::string print() override;
 };
