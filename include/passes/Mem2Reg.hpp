@@ -12,8 +12,6 @@ class Mem2Reg : public TransformPass {
     Function *func_;
     // 当前函数对应的支配树
     Dominators* dominators_;
-    // TODO 添加需要的变量
-
     // 所有需要处理的变量
     std::list<AllocaInst*> allocas_;
     // 变量定值栈
