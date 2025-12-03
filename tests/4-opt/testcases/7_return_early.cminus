@@ -1,0 +1,44 @@
+int main(void)
+{
+    int b;
+    int a;
+    int flags[10];
+    a = 0;
+    b = input();
+    while (a < 10)
+    {
+        flags[a] = b * 2;
+        a = a + 1;
+    }
+    if (a > 1)
+    {
+        if (a < 10)
+        {
+            return 7;
+        }
+        else
+        {
+            return 2;
+        }
+    }
+    else
+    {
+        return 3;
+    }
+    while (a < 10)
+    {
+        int b;
+        b = 0;
+        while (b < 10)
+        {
+            b = b + 1;
+            flags[b] = flags[a];
+            if (flags[a + b] < flags[a * b])
+            {
+                return 4;
+            }
+        }
+        a = a + 1;
+    }
+    return 5;
+}

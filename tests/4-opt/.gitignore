@@ -1,2 +1,5 @@
 output
-log.txt
+raw_log.txt
+licm_log.txt
+all_log.txt
+mem2reg_log.txt

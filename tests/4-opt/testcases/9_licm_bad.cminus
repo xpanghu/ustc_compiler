@@ -1,0 +1,27 @@
+
+
+int main(void) {
+  int t;
+  int a;
+  int b;
+  t = 0;
+  b = 1;
+  while (t < 0) {
+    a = b / b + b * b + a;
+    a = b / b + b * b + a;
+    t = t + 1;
+  }
+  while (t < 1) {
+    if (b > 2) {
+      a = b / b + b * b + a;
+      a = b / b + b * b + a;
+    } else
+      output(t);
+    t = t + 1;
+  }
+  while (t < 3) {
+    a = b / b + b * b + a;
+    t = t + 1;
+  }
+  return a;
+}

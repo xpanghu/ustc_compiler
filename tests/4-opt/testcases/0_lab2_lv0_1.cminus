@@ -1,0 +1,11 @@
+void main(void)
+{
+    float a[10];
+    float b;
+    int c[10];
+    int d;
+    input();
+    outputFloat(123.4);
+    output(1234);
+    return;
+}

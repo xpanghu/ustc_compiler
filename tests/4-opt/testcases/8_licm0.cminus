@@ -1,0 +1,104 @@
+int ga;
+int gb;
+
+int pure(int m, int n) { return m * n; }
+int f(int m, int n) { return m * n + ga; }
+
+int g(int m, int n)
+{
+    ga = m + n;
+    return m * n + gb;
+}
+
+int notsopure(void)
+{
+    return input();
+}
+
+int main(void)
+{
+    int t;
+    int a;
+    int b;
+    int c;
+    int d;
+    int ar[4];
+    int br[4];
+    int cr[4];
+    t = 0;
+    while (t < 4)
+    {
+        cr[t] = notsopure();
+        t = t + 1;
+    }
+    t = 0;
+    c = 1;
+    while (t < 10)
+    {
+        a = pure(c, c);
+        b = pure(a, c);
+        d = pure(b, t);
+        output(a + b + d);
+        t = t + 1;
+    }
+    t = 0;
+    while (t < 10)
+    {
+        a = pure(ga, c);
+        b = f(gb, c);
+        output(a + b);
+        t = t + 1;
+    }
+    t = 0;
+    while (t < 10)
+    {
+        a = f(gb, c);
+        b = f(c, c);
+        d = pure(gb, c);
+        d = d + g(c, c);
+        output(a + b + d);
+        t = t + 1;
+    }
+    t = 0;
+    while (t < 10)
+    {
+        if (t < 5)
+        {
+            a = c * 2;
+        }
+        else
+        {
+            a = c * 3;
+        }
+        output(a);
+        t = t + 1;
+    }
+    t = 0;
+    while (t < 4)
+    {
+        ar[t] = 1 + t;
+        br[t] = 1 - t;
+        t = t + 1;
+    }
+    t = 0;
+    while (t < 4)
+    {
+        int s;
+        s = 0;
+        while (s < 4)
+        {
+            cr[t] = cr[t] + ar[t] * br[s] + ga + gb;
+            s = s + 1;
+            gb = gb + 1;
+        }
+        t = t + 1;
+        ga = ga + 1;
+    }
+    t = 0;
+    while (t < 4)
+    {
+        output(cr[t]);
+        t = t + 1;
+    }
+    return 0;
+}
