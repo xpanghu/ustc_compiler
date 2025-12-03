@@ -382,7 +382,7 @@ std::string Instruction::safe_print() const
                 }
                 else
                 {
-                    if (auto fty = dynamic_cast<FunctionType*>(ty))
+                    if (auto fty = dynamic_cast<FunctionType*>(op0->get_type()))
                     {
                         auto ty3 = fty->get_return_type();
                         if (ty3 == nullptr)

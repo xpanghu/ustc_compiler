@@ -329,27 +329,10 @@ Value* CminusfBuilder::visit(ASTVar &node) {
         }
     } else {
         auto *val = node.expression->accept(*this);
-        auto *exceptBB = BasicBlock::create(module, "", context.func);
-        auto *contBB = BasicBlock::create(module, "", context.func);
         if (val->get_type()->is_float_type()) {
             val = builder->create_fptosi(val, INT32_T);
         }
 
-        Value* is_neg = builder->create_icmp_lt(val, CONST_INT(0));
-
-        builder->create_cond_br(is_neg, exceptBB, contBB);
-        builder->set_insert_point(exceptBB);
-        auto *neg_idx_except_fun = scope.find("neg_idx_except");
-        builder->create_call(dynamic_cast<Function *>(neg_idx_except_fun), {});
-        if (context.func->get_return_type()->is_void_type()) {
-            builder->create_void_ret();
-        } else if (context.func->get_return_type()->is_float_type()) {
-            builder->create_ret(CONST_FP(0.));
-        } else {
-            builder->create_ret(CONST_INT(0));
-        }
-
-        builder->set_insert_point(contBB);
         Value *tmp_ptr;
         if (is_int || is_float) {
             tmp_ptr = builder->create_gep(var, {val});

@@ -54,6 +54,21 @@ void LoopDetection::run() {
     delete dominators_;
 }
 
+std::string Loop::safe_print() const
+{
+    std::string ret;
+    if (header_ == nullptr) ret += "b<null>";
+    else ret += header_->get_name();
+    ret += " ";
+    ret += std::to_string(blocks_.size());
+    ret += "b ";
+    ret += std::to_string(latches_.size());
+    ret += "latch ";
+    ret += std::to_string(sub_loops_.size());
+    ret += "sub";
+    return ret;
+}
+
 /**
  * @brief 发现循环及其子循环
  * @param bb 循环的header块
@@ -69,10 +84,12 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock *bb, std::set<BasicBl
     // 5. 建立正确的循环嵌套关系
 
     std::vector<BasicBlock*> work_list = {latches.begin(), latches.end()}; // 初始化工作表
+    std::unordered_set<BasicBlock*> already_in_work_list = { latches.begin(), latches.end() }; // 已经在工作表，防止重复加入
 
     while (!work_list.empty()) { // 当工作表非空时继续处理
         auto bb2 = work_list.back();
         work_list.pop_back();
+        already_in_work_list.erase(bb2);
 
         // TODO-1: 处理未分配给任何循环的节点
         if (bb_to_loop_.find(bb2) == bb_to_loop_.end()) {
@@ -85,7 +102,7 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock *bb, std::set<BasicBl
         
         }
         // TODO-2: 处理已属于其他循环的节点
-    	if (bb_to_loop_[bb2] != loop) {
+        if (bb_to_loop_[bb2] != loop) {
             /* 在此添加代码：
              * 1. 获取bb当前所属的循环sub_loop
              * 2. 找到sub_loop的最顶层父循环

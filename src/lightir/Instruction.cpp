@@ -197,6 +197,23 @@ BranchInst *BranchInst::create_br(BasicBlock *if_true, BasicBlock *bb) {
     return new BranchInst(nullptr, if_true, nullptr, bb);
 }
 
+void BranchInst::replace_all_bb_match(BasicBlock* need_replace, BasicBlock* replace_to)
+{
+    if (need_replace == nullptr || replace_to == nullptr || need_replace == replace_to) return;
+    int size = static_cast<int>(get_operands().size());
+    for (int i = 0; i < size; i ++)
+    {
+        auto op = get_operand(i);
+        if (op == need_replace) set_operand(i, replace_to);
+    }
+    auto parent = get_parent();
+    if (parent == nullptr) return;
+    parent->remove_succ_basic_block(need_replace);
+    need_replace->remove_pre_basic_block(parent);
+    parent->add_succ_basic_block(replace_to);
+    replace_to->add_pre_basic_block(parent);
+}
+
 ReturnInst::ReturnInst(Value *val, BasicBlock *bb)
     : Instruction(bb->get_module()->get_void_type(), ret, "", bb) {
     if (val == nullptr) {
@@ -352,14 +369,13 @@ SiToFpInst *SiToFpInst::create_sitofp(Value *val, BasicBlock *bb, const std::str
 
 PhiInst::PhiInst(Type *ty, const std::vector<Value *>& vals,
                  const std::vector<BasicBlock *>& val_bbs, BasicBlock *bb, const std::string& name)
-    : Instruction(ty, phi, name) {
+    : Instruction(ty, phi, name, bb) {
     assert(vals.size() == val_bbs.size() && "Unmatched vals and bbs");
     for (unsigned i = 0; i < vals.size(); i++) {
         assert(ty == vals[i]->get_type() && "Bad type for phi");
         add_operand(vals[i]);
         add_operand(val_bbs[i]);
     }
-    this->set_parent(bb);
 }
 
 PhiInst *PhiInst::create_phi(Type *ty, BasicBlock *bb,

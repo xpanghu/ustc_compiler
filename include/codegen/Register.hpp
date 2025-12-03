@@ -17,7 +17,7 @@
  * $r23 - $r31  $s0 - $s8   static
  *
  * Floating-point Register Convention
- * Name	        Alias	    Meaning
+ * Name         Alias       Meaning
  * $f0-$f1      $fa0-$fa1   argument/return value
  * $f2-$f7      $fa2-$fa7   argument
  * $f8-$f23     $ft0-$ft15  temporary

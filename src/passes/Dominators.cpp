@@ -62,13 +62,13 @@ void Dominators::run() {
  * 该函数使用后序号来查找两个节点的最近公共支配者。
  * 通过在支配树上向上遍历直到找到交点。
  */
-BasicBlock *Dominators::intersect(BasicBlock *b1, const BasicBlock *b2) const
+BasicBlock *Dominators::intersect(BasicBlock *b1, BasicBlock *b2) const
 {
     while (b1 != b2) {
-        while (get_post_order(b1) < get_post_order(b2)) {
+        while (get_reversed_post_order(b1) > get_reversed_post_order(b2)) {
             b1 = get_idom(b1);
         }
-        while (get_post_order(b2) < get_post_order(b1)) {
+        while (get_reversed_post_order(b2) > get_reversed_post_order(b1)) {
             b2 = get_idom(b2);
         }
     }
@@ -84,6 +84,12 @@ BasicBlock *Dominators::intersect(BasicBlock *b1, const BasicBlock *b2) const
 void Dominators::create_reverse_post_order() {
     std::set<BasicBlock*> visited;
     dfs(f_->get_entry_block(), visited);
+    int size = static_cast<int>(reversed_post_order_vec_.size()) - 1;
+    for (auto& it : reversed_post_order_)
+    {
+        it.second = size - it.second;
+        reversed_post_order_vec_[it.second] = it.first;
+    }
 }
 
 /**
@@ -100,8 +106,8 @@ void Dominators::dfs(BasicBlock *bb, std::set<BasicBlock *> &visited) {
             dfs(succ, visited);
         }
     }
-    post_order_vec_.push_back(bb);
-    post_order_.insert({bb, post_order_.size()});
+    reversed_post_order_vec_.push_back(bb);
+    reversed_post_order_.insert({bb, reversed_post_order_.size()});
 }
 
 /**
@@ -111,38 +117,28 @@ void Dominators::dfs(BasicBlock *bb, std::set<BasicBlock *> &visited) {
  */
 void Dominators::create_idom() {
     // 可能有用的数据结构
-    // post_order_vec_ vector<BasicBlock*>, 其中基本块按照逆后续排列
-    // post_order_ map<BasicBlock*, unsigned int>, 每个基本块在 post_order_vec_ 中的索引
-	// 可能有用的函数
+    // reversed_post_order_vec_ vector<BasicBlock*>, 其中基本块按照逆后续排列
+    // reversed_post_order_ map<BasicBlock*, unsigned int>, 每个基本块在 reversed_post_order_vec_ 中的索引
+    // 可能有用的函数
     // intersect(BasicBlock *, BasicBlock *) 寻找两个基本块在支配树上的最近祖先
-	// 需要填写
+    // 需要填写
     // idom_ map<BasicBlock *, BasicBlock *> 直接支配者, idom_[a] = b 代表 b 直接支配 a (或者 idom_[a] = a 代表 a 没有直接支配者)
 
-    // 代表基本块的直接支配者是否已经确定, 不会在迭代中改变 (默认初始化为 false)
-    bool* already_determined = new bool[post_order_vec_.size()]{};
+    int bb_count = static_cast<int>(reversed_post_order_vec_.size());
 
-    int bb_count = static_cast<int>(post_order_vec_.size());
-    for (int i = 0; i < bb_count; i++)
-    {
-        auto bb = post_order_vec_[i];
-        // TODO 填写可以直接确定直接支配者, 无需参与迭代的基本块的 idom_ 和 already_determined
-        throw "Unimplemented create_idom";
-    }
+    idom_[reversed_post_order_vec_[0]] = reversed_post_order_vec_[0];
 
     bool changed;
     do
     {
         changed = false;
-        for (int i = 0; i < bb_count; i++)
+        for (int i = 1; i < bb_count; i++)
         {
-            if (already_determined[i]) continue;
-            auto bb = post_order_vec_[i];
+            auto bb = reversed_post_order_vec_[i];
             // TODO 更新基本块 bb 的 idom_, 设置 changed(如果 idom_ 有变化)
-            throw "Unimplemented create_idom";
+            throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
         }
     } while (changed);
-
-    delete[] already_determined;
 }
 
 /**
@@ -154,19 +150,19 @@ void Dominators::create_idom() {
  */
 void Dominators::create_dominance_frontier() {
     // 可能有用的数据结构
-    // post_order_vec_ vector<BasicBlock*>, 其中基本块按照逆后续排列
-    // post_order_ map<BasicBlock*, unsigned int>, 每个基本块在 post_order_vec_ 中的索引
-	// idom_ map<BasicBlock *, BasicBlock *> 直接支配者, idom_[a] = b 代表 b 直接支配 a, 支配树中 b 是 a 的 parent
-	// (或者 idom_[a] = a 代表 a 没有直接支配者)
+    // reversed_post_order_vec_ vector<BasicBlock*>, 其中基本块按照逆后续排列
+    // reversed_post_order_ map<BasicBlock*, unsigned int>, 每个基本块在 reversed_post_order_vec_ 中的索引
+    // idom_ map<BasicBlock *, BasicBlock *> 直接支配者, idom_[a] = b 代表 b 直接支配 a, 支配树中 b 是 a 的 parent
+    // (或者 idom_[a] = a 代表 a 没有直接支配者)
     // 需要填写
     // dom_frontier_ map<BasicBlock*, set<BasicBlock*>> 支配边界
 
-    int bb_count = static_cast<int>(post_order_vec_.size());
+    int bb_count = static_cast<int>(reversed_post_order_vec_.size());
     for (int i = 0; i < bb_count; i++)
     {
-        auto bb = post_order_vec_[i];
+        auto bb = reversed_post_order_vec_[i];
         // TODO 计算 bb 的支配边界集合, 填入 dom_frontier_
-        throw "Unimplemented create_dominance_frontier";
+        throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
     }
 }
 
@@ -178,12 +174,13 @@ void Dominators::create_dominance_frontier() {
  */
 void Dominators::create_dom_tree_succ() {
     // 可能有用的数据结构
-	// idom_ map<BasicBlock *, BasicBlock *> 直接支配者, idom_[a] = b 代表 b 直接支配 a, 支配树中 b 是 a 的 parent
+    // idom_ map<BasicBlock *, BasicBlock *> 直接支配者, idom_[a] = b 代表 b 直接支配 a, 支配树中 b 是 a 的 parent
     // 需要填写
     // dom_tree_succ_blocks_ map<BasicBlock*, set<BasicBlock*>> 支配树中后继(孩子)节点
 
     // TODO 分析得到 f_ 中各个基本块的支配树后继
-    throw "Unimplemented create_dom_tree_succ";
+    // 注意如果 idom_[n] = n, 这意味着 n 没有直接支配者，因此 n 的后继中没有 n
+    throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
 }
 
 /**

@@ -10,11 +10,12 @@
 // 处理流程：两趟处理，mark 标记有用变量，sweep 删除无用指令
 void DeadCode::run() {
     bool changed;
-	func_info = new FuncInfo(m_);
+    func_info = new FuncInfo(m_);
     func_info->run();
     do {
         changed = false;
         for (auto func : m_->get_functions()) {
+            if (func->is_declaration()) continue;
             if (remove_bb_) changed |= clear_basic_blocks(func);
             mark(func);
             changed |= sweep(func);
@@ -133,7 +134,7 @@ bool DeadCode::sweep(Function *func) {
     for (auto bb : func->get_basic_blocks()) {
         for (auto inst : bb->get_instructions()) {
             if (marked[inst]) continue; 
-        	wait_del.emplace(inst);
+            wait_del.emplace(inst);
         }
         bb->get_instructions().remove_if([&wait_del](Instruction* i) -> bool {return wait_del.count(i); });
         if (!wait_del.empty()) rm = true;
@@ -172,12 +173,12 @@ void DeadCode::sweep_globally() const {
     // changed |= unused_funcs.size() or unused_globals.size();
     for (auto func : unused_funcs)
     {
-		m_->get_functions().remove(func);
-		delete func;
-	}
+        m_->get_functions().remove(func);
+        delete func;
+    }
     for (auto glob : unused_globals)
     {
-		m_->get_global_variable().remove(glob);
-		delete glob;
-	}
+        m_->get_global_variable().remove(glob);
+        delete glob;
+    }
 }

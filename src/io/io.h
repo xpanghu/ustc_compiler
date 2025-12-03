@@ -1,7 +1,7 @@
-int input();
+int input(void);
 
 void output(int a);
 
 void outputFloat(float a);
 
-void neg_idx_except();
+void add_lab4_flag(int idx, int val);

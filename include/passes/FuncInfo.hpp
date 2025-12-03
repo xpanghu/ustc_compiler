@@ -27,13 +27,17 @@ class FuncInfo : public ModuleAnalysisPass {
     void run() override;
 
     // 函数是否是纯函数
-    bool is_pure(Function *func) { return !func->is_declaration() && !use_libs.count(func) && loads[func].empty() && stores[func].empty(); }
+    bool is_pure(Function *func) { return !func->is_declaration() && !use_libs[func] && loads[func].empty() && stores[func].empty(); }
+    // 函数是否使用了 io
+    bool use_io(Function* func) { return func->is_declaration() || use_libs[func]; }
     // 返回 StoreInst 存入的变量(全局/局部变量或函数参数)
     static Value* store_ptr(const StoreInst* st);
     // 返回 LoadInst 加载的变量(全局/局部变量或函数参数)
     static Value* load_ptr(const LoadInst* ld);
     // 返回 CallInst 代表的函数调用间接存入的变量(全局/局部变量或函数参数)
-	std::unordered_set<Value*> get_stores(const CallInst* call);
+    std::unordered_set<Value*> get_stores(const CallInst* call);
+    // 返回 CallInst 代表的函数调用间接加载的变量(全局/局部变量或函数参数)
+    std::unordered_set<Value*> get_loads(const CallInst* call);
   private:
     // 函数存储的值
     std::unordered_map<Function*, UseMessage> stores;

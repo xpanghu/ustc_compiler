@@ -25,7 +25,8 @@ def __lldb_init_module(debugger: lldb.SBDebugger, internal_dict):
              , "BasicBlock"
              , "GlobalVariable"
              , "Instruction", "IBinaryInst", "FBinaryInst", "ICmpInst", "FCmpInst", "CallInst", "BranchInst", "ReturnInst", "GetElementPtrInst", "StoreInst", "LoadInst", "AllocaInst", "ZextInst", "FpToSiInst", "SiToFpInst", "PhiInst"
-             , "ASMInstruction", "Reg", "FReg", "CFReg" ]
+             , "ASMInstruction", "Reg", "FReg", "CFReg"
+             , "Loop" ]
     for i in types:
         debugger.HandleCommand(
             f"type summary add -F lldb_formatters.SafePrintSummary {i} -w my"

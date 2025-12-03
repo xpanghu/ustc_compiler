@@ -27,48 +27,48 @@ Module::~Module()
     for (auto i : global_list_) delete i;
 }
 
-Type *Module::get_void_type() const { return void_ty_; }
-Type *Module::get_label_type() const { return label_ty_; }
-IntegerType *Module::get_int1_type() const { return int1_ty_; }
-IntegerType *Module::get_int32_type() const { return int32_ty_; }
-FloatType *Module::get_float_type() const { return float32_ty_; }
-PointerType *Module::get_int32_ptr_type() {
+Type* Module::get_void_type() const { return void_ty_; }
+Type* Module::get_label_type() const { return label_ty_; }
+IntegerType* Module::get_int1_type() const { return int1_ty_; }
+IntegerType* Module::get_int32_type() const { return int32_ty_; }
+FloatType* Module::get_float_type() const { return float32_ty_; }
+PointerType* Module::get_int32_ptr_type() {
     return get_pointer_type(int32_ty_);
 }
-PointerType *Module::get_float_ptr_type() {
+PointerType* Module::get_float_ptr_type() {
     return get_pointer_type(float32_ty_);
 }
 
-PointerType *Module::get_pointer_type(Type *contained) {
+PointerType* Module::get_pointer_type(Type* contained) {
     if (pointer_map_.find(contained) == pointer_map_.end()) {
         pointer_map_[contained] = new PointerType(contained);
     }
     return pointer_map_[contained];
 }
 
-ArrayType *Module::get_array_type(Type *contained, unsigned num_elements) {
-    if (array_map_.find({contained, num_elements}) == array_map_.end()) {
+ArrayType* Module::get_array_type(Type* contained, unsigned num_elements) {
+    if (array_map_.find({ contained, num_elements }) == array_map_.end()) {
         array_map_[{contained, num_elements}] =
             new ArrayType(contained, num_elements);
     }
     return array_map_[{contained, num_elements}];
 }
 
-FunctionType *Module::get_function_type(Type *retty,
-                                        std::vector<Type *> &args) {
-    if (not function_map_.count({retty, args})) {
+FunctionType* Module::get_function_type(Type* retty,
+    std::vector<Type*>& args) {
+    if (not function_map_.count({ retty, args })) {
         function_map_[{retty, args}] =
             new FunctionType(retty, args);
     }
     return function_map_[{retty, args}];
 }
 
-void Module::add_function(Function *f) { function_list_.push_back(f); }
-std::list<Function*> &Module::get_functions() { return function_list_; }
-void Module::add_global_variable(GlobalVariable *g) {
+void Module::add_function(Function* f) { function_list_.push_back(f); }
+std::list<Function*>& Module::get_functions() { return function_list_; }
+void Module::add_global_variable(GlobalVariable* g) {
     global_list_.push_back(g);
 }
-std::list<GlobalVariable*> &Module::get_global_variable() {
+std::list<GlobalVariable*>& Module::get_global_variable() {
     return global_list_;
 }
 

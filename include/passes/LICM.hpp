@@ -18,8 +18,4 @@ class LoopInvariantCodeMotion : public TransformPass {
     std::vector<Instruction*> collect_insts(Loop* loop);
     void traverse_loop(Loop* loop);
     void run_on_loop(Loop* loop);
-    void collect_loop_info(Loop* loop,
-                          std::set<Value *> &loop_instructions,
-                          std::set<Value *> &updated_global,
-                          bool &contains_impure_call);
 };

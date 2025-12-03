@@ -214,6 +214,8 @@ public:
 
     Value *get_condition() const { return get_operand(0); }
 
+    void replace_all_bb_match(BasicBlock* need_replace, BasicBlock* replace_to);
+
     std::string print() override;
 };
 
@@ -251,8 +253,8 @@ class StoreInst : public Instruction {
   public:
     static StoreInst *create_store(Value *val, Value *ptr, BasicBlock *bb);
 
-    Value *get_rval() const { return this->get_operand(0); }
-    Value *get_lval() const { return this->get_operand(1); }
+    Value *get_val() const { return this->get_operand(0); }
+    Value *get_ptr() const { return this->get_operand(1); }
 
     std::string print() override;
 };
@@ -264,7 +266,7 @@ class LoadInst : public Instruction {
   public:
     static LoadInst *create_load(Value *ptr, BasicBlock *bb, const std::string& name = "");
 
-    Value *get_lval() const { return this->get_operand(0); }
+    Value *get_ptr() const { return this->get_operand(0); }
     Type *get_load_type() const { return get_type(); }
 
     std::string print() override;

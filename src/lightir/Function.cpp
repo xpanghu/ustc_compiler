@@ -7,17 +7,8 @@
 #include <unordered_set>
 #include <queue>
 
-namespace
-{
-    std::string chopName(std::string name)
-    {
-        if (name.size() > 3) return { name.begin(), name.begin() + 3 };
-        return name;
-    }
-}
-
 Function::Function(FunctionType* ty, const std::string& name, Module* parent)
-    : Value(ty, name), names4blocks_("label", chopName(name) + "_"), names4insts_("op", ""), parent_(parent), seq_cnt_(0) {
+    : Value(ty, name), names4blocks_("", name + "_"), names4insts_("op", ""), parent_(parent), seq_cnt_(0) {
     // num_args_ = ty->getNumParams();
     parent->add_function(this);
     // build args

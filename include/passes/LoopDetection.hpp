@@ -40,6 +40,7 @@ class Loop {
     const std::vector<Loop*>& get_sub_loops() { return sub_loops_; }
     const std::unordered_set<BasicBlock *>& get_latches() { return latches_; }
     void add_latch(BasicBlock *bb) { latches_.insert(bb); }
+    std::string safe_print() const;
 };
 
 class LoopDetection : public FunctionAnalysisPass {

@@ -11,14 +11,14 @@
 
 BasicBlock::BasicBlock(const Module* m, const std::string& name = "",
     Function* parent = nullptr)
-    : Value(m->get_label_type(), 
-parent == nullptr ? GLOBAL_BASICBLOCK_NAMES_.get_name(name) : parent->names4blocks_.get_name(name))
-, parent_(parent) {
+    : Value(m->get_label_type(),
+        parent == nullptr ? GLOBAL_BASICBLOCK_NAMES_.get_name(name) : parent->names4blocks_.get_name(name))
+    , parent_(parent) {
     assert(parent && "currently parent should not be nullptr");
     parent_->add_basic_block(this);
 }
 
-Module *BasicBlock::get_module() const { return get_parent()->get_parent(); }
+Module* BasicBlock::get_module() const { return get_parent()->get_parent(); }
 void BasicBlock::erase_from_parent() { this->get_parent()->remove(this); }
 
 bool BasicBlock::is_terminated() const {
@@ -34,18 +34,18 @@ bool BasicBlock::is_terminated() const {
     }
 }
 
-Instruction *BasicBlock::get_terminator() const
+Instruction* BasicBlock::get_terminator() const
 {
     assert(is_terminated() &&
-           "Trying to get terminator from an bb which is not terminated");
+        "Trying to get terminator from an bb which is not terminated");
     return instr_list_.back();
 }
 
-void BasicBlock::add_instruction(Instruction *instr) {
+void BasicBlock::add_instruction(Instruction* instr) {
     if (instr->is_alloca() || instr->is_phi())
     {
         auto it = instr_list_.begin();
-        for (;  it != instr_list_.end() && ((*it)->is_alloca() || (*it)->is_phi()); ++it){}
+        for (; it != instr_list_.end() && ((*it)->is_alloca() || (*it)->is_phi()); ++it) {}
         instr_list_.emplace(it, instr);
         return;
     }
@@ -146,4 +146,4 @@ BasicBlock* BasicBlock::get_entry_block_of_same_function() const
     return parent_->get_entry_block();
 }
 
-Names GLOBAL_BASICBLOCK_NAMES_{"label", "_"};
+Names GLOBAL_BASICBLOCK_NAMES_{ "label", "_" };

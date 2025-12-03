@@ -20,8 +20,7 @@ class BasicBlock : public Value {
     ~BasicBlock() override;
     static BasicBlock *create(Module *m, const std::string &name,
                               Function *parent) {
-        auto prefix = name.empty() ? "" : "label_";
-        return new BasicBlock(m, prefix + name, parent);
+        return new BasicBlock(m, name, parent);
     }
 
     /****************api about cfg****************/

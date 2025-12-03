@@ -42,6 +42,6 @@ void User::remove_operand(unsigned idx) {
     }
     // remove the designated operand
     if (operands_[idx])
-		operands_[idx]->remove_use(this, idx);
+        operands_[idx]->remove_use(this, idx);
     operands_.erase(operands_.begin() + idx);
 }

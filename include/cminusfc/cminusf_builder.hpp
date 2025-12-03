@@ -67,15 +67,10 @@ class CminusfBuilder : public ASTVisitor {
         auto *output_float_fun =
             Function::create(output_float_type, "outputFloat", module);
 
-        auto *neg_idx_except_type = FunctionType::get(TyVoid, {});
-        auto *neg_idx_except_fun = Function::create(
-            neg_idx_except_type, "neg_idx_except", module);
-
         scope.enter();
         scope.push("input", input_fun);
         scope.push("output", output_fun);
         scope.push("outputFloat", output_float_fun);
-        scope.push("neg_idx_except", neg_idx_except_fun);
     }
 
     Module* getModule() const { return module; }
