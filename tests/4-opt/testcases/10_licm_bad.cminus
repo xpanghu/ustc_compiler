@@ -6,7 +6,6 @@ int main(void) {
   int b;
   t = 0;
   b = 1;
-  a = 0;
   while (t < 0) {
     a = b / b + b * b + a;
     a = b / b + b * b + a;
