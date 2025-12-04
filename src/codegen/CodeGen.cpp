@@ -295,7 +295,7 @@ void CodeGen::gen_prologue()
         {
             if (func->is_declaration()) continue;
 
-            for (auto& bb : context.func->get_basic_blocks())
+            for (auto& bb : func->get_basic_blocks())
             {
                 for (auto& instr : bb->get_instructions())
                 {
