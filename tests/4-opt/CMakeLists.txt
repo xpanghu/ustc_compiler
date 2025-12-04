@@ -6,4 +6,5 @@ add_executable(
 
 install(
     TARGETS eval_lab4
+    RUNTIME DESTINATION bin
 )
