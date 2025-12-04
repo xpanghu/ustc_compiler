@@ -11,6 +11,7 @@
 #include "Type.hpp"
 #include <string>
 
+
 void CodeGen::allocate()
 {
     unsigned offset = PROLOGUE_OFFSET_BASE;
@@ -286,6 +287,31 @@ void CodeGen::gen_prologue()
             store_from_greg(arg, Reg::a(garg_cnt++));
         }
     }
+    
+    if (context.func->get_name() == "main")
+    {
+        int allocate_size = 0;
+        for (auto func : context.func->get_parent()->get_functions())
+        {
+            if (func->is_declaration()) continue;
+
+            for (auto& bb : context.func->get_basic_blocks())
+            {
+                for (auto& instr : bb->get_instructions())
+                {
+                    if (instr->is_alloca())
+                    {
+                        auto* alloca_inst = dynamic_cast<AllocaInst*>(instr);
+                        allocate_size += static_cast<int>(alloca_inst->get_alloca_type()->get_size());
+                    }
+                }
+            }
+        }
+
+        load_to_greg(ConstantInt::get(0, m), Reg::a(0));
+        load_to_greg(ConstantInt::get(allocate_size, m), Reg::a(1));
+        append_inst("bl add_lab4_flag");
+    }
 }
 
 void CodeGen::gen_epilogue()
@@ -437,9 +463,6 @@ void CodeGen::gen_alloca()
         append_inst("add.d", {Reg::t(0).print(), "$fp", Reg::t(1).print()});
     }
     store_from_greg(allocaInst, Reg::t(0));
-    load_to_greg(ConstantInt::get(0, m), Reg::a(0));
-    load_to_greg(ConstantInt::get(static_cast<int>(allocaInst->get_alloca_type()->get_size()), m), Reg::a(1));
-    append_inst("bl add_lab4_flag");
 }
 
 void CodeGen::gen_load()
