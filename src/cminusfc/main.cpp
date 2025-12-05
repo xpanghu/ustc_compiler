@@ -65,6 +65,7 @@ int main(int argc, char** argv) {
         PassManager PM(m);
         // optimization 
         if (config.mem2reg) {
+            PM.add_pass<DeadCode>(true);
             PM.add_pass<Mem2Reg>();
             PM.add_pass<DeadCode>(false);
         }

@@ -5,3 +5,5 @@ out
 CMakePresets.json
 Folder.DotSettings.user
 .env
+.vscode
+/tests/personal-test/

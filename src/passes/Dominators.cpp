@@ -1,6 +1,7 @@
 #include "Dominators.hpp"
 
 #include <fstream>
+#include <functional>
 #include <vector>
 
 #include "BasicBlock.hpp"
@@ -9,7 +10,7 @@
 // TODO README
 
 // 一些注意事项：
-// 
+//
 // 1. Dominators 是针对特定 Function 的分析 Pass
 // 因此代码中的所有基本块都属于同一个函数
 // 函数至少有一个入口块，你不用考虑没有基本块的情况
@@ -38,13 +39,23 @@
  * 5. 构建支配树的后继关系
  * 6. 创建支配树的DFS序
  */
-void Dominators::run() {
+void Dominators::run()
+{
+    // 全部清空, 保证同一个对象重复 run() 时不会残留上一次的结果
+    // (下面的 insert 不会覆盖已存在的键)
+    reversed_post_order_vec_.clear();
+    reversed_post_order_.clear();
+    idom_.clear();
+    dom_frontier_.clear();
+    dom_tree_succ_blocks_.clear();
+    dom_tree_L_.clear();
+    dom_tree_R_.clear();
     dom_post_order_.clear();
     dom_dfs_order_.clear();
     for (auto bb : f_->get_basic_blocks()) {
-        idom_.insert({ bb, nullptr });
-        dom_frontier_.insert({ bb, {} });
-        dom_tree_succ_blocks_.insert({ bb, {} });
+        idom_.insert({bb, nullptr});
+        dom_frontier_.insert({bb, {}});
+        dom_tree_succ_blocks_.insert({bb, {}});
     }
     create_reverse_post_order();
     create_idom();
@@ -58,11 +69,11 @@ void Dominators::run() {
  * @param b1 第一个基本块
  * @param b2 第二个基本块
  * @return 返回在支配树上最深的同时支配b1和b2的节点
- * 
+ *
  * 该函数使用后序号来查找两个节点的最近公共支配者。
  * 通过在支配树上向上遍历直到找到交点。
  */
-BasicBlock *Dominators::intersect(BasicBlock *b1, BasicBlock *b2) const
+BasicBlock* Dominators::intersect(BasicBlock* b1, BasicBlock* b2) const
 {
     while (b1 != b2) {
         while (get_reversed_post_order(b1) > get_reversed_post_order(b2)) {
@@ -77,18 +88,18 @@ BasicBlock *Dominators::intersect(BasicBlock *b1, BasicBlock *b2) const
 
 /**
  * @brief 创建函数的反向后序遍历序列
- * 
+ *
  * 通过DFS遍历CFG来构建基本块的后序遍历序列。
  * 这个序列用于后续的支配关系分析。
  */
-void Dominators::create_reverse_post_order() {
+void Dominators::create_reverse_post_order()
+{
     std::set<BasicBlock*> visited;
     dfs(f_->get_entry_block(), visited);
     int size = static_cast<int>(reversed_post_order_vec_.size()) - 1;
-    for (auto& it : reversed_post_order_)
-    {
+    for (auto& it : reversed_post_order_) {
         it.second = size - it.second;
-        reversed_post_order_vec_[it.second] = it.first;
+        reversed_post_order_vec_[it.second] = it.first; 
     }
 }
 
@@ -96,10 +107,11 @@ void Dominators::create_reverse_post_order() {
  * @brief 深度优先搜索辅助函数
  * @param bb 当前遍历的基本块
  * @param visited 已访问的基本块集合
- * 
+ *
  * 执行DFS遍历，维护后序遍历序列和每个基本块的后序号。
  */
-void Dominators::dfs(BasicBlock *bb, std::set<BasicBlock *> &visited) {
+void Dominators::dfs(BasicBlock* bb, std::set<BasicBlock*>& visited) 
+{
     visited.insert(bb);
     for (auto succ : bb->get_succ_basic_blocks()) {
         if (visited.find(succ) == visited.end()) {
@@ -109,99 +121,136 @@ void Dominators::dfs(BasicBlock *bb, std::set<BasicBlock *> &visited) {
     reversed_post_order_vec_.push_back(bb);
     reversed_post_order_.insert({bb, reversed_post_order_.size()});
 }
-
 /**
  * @brief 计算所有基本块的直接支配者(immediate dominator)
- * 
+ *
  * 使用迭代算法计算每个基本块的直接支配者, 见课程主页 Dominators 一节
  */
-void Dominators::create_idom() {
+void Dominators::create_idom()
+{
     // 可能有用的数据结构
     // reversed_post_order_vec_ vector<BasicBlock*>, 其中基本块按照逆后续排列
     // reversed_post_order_ map<BasicBlock*, unsigned int>, 每个基本块在 reversed_post_order_vec_ 中的索引
     // 可能有用的函数
     // intersect(BasicBlock *, BasicBlock *) 寻找两个基本块在支配树上的最近祖先
-    // 需要填写
     // idom_ map<BasicBlock *, BasicBlock *> 直接支配者, idom_[a] = b 代表 b 直接支配 a (或者 idom_[a] = a 代表 a 没有直接支配者)
 
     int bb_count = static_cast<int>(reversed_post_order_vec_.size());
 
+    // 逆后序的第 0 个元素就是入口块, 它没有支配者, 用自环表示
     idom_[reversed_post_order_vec_[0]] = reversed_post_order_vec_[0];
 
     bool changed;
-    do
-    {
+    do {
         changed = false;
-        for (int i = 1; i < bb_count; i++)
-        {
+        for (int i = 1; i < bb_count; i++) {
             auto bb = reversed_post_order_vec_[i];
-            // TODO 更新基本块 bb 的 idom_, 设置 changed(如果 idom_ 有变化)
-            throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
+            // 按逆后序扫描, 除回边外的前驱都已经算出了 idom
+            BasicBlock* new_idom = nullptr;
+            for (auto p : bb->get_pre_basic_blocks()) {
+                // idom 还是 nullptr 的前驱本轮用不了(回边的源块, 或者不可达块), 跳过
+                if (idom_[p] == nullptr)
+                    continue;
+                // 第一个可用前驱直接作为初值, 之后逐个与它求支配树上的最近公共祖先
+                new_idom = (new_idom == nullptr) ? p : intersect(p, new_idom);
+            }
+            // 回边导致本轮算出的 idom 可能不是最终结果, 外层循环迭代到不动点
+            if (new_idom != nullptr && idom_[bb] != new_idom) {
+                idom_[bb] = new_idom;
+                changed = true;
+            }
         }
     } while (changed);
 }
 
 /**
  * @brief 计算所有基本块的支配边界(dominance frontier)
- * 
+ *
  * 对于每个有多个前驱的基本块B：
  * 从每个前驱P开始，沿着支配树向上遍历直到遇到B的直接支配者，
  * 将B加入路径上所有节点的支配边界中。
  */
-void Dominators::create_dominance_frontier() {
+void Dominators::create_dominance_frontier()
+{
     // 可能有用的数据结构
     // reversed_post_order_vec_ vector<BasicBlock*>, 其中基本块按照逆后续排列
     // reversed_post_order_ map<BasicBlock*, unsigned int>, 每个基本块在 reversed_post_order_vec_ 中的索引
     // idom_ map<BasicBlock *, BasicBlock *> 直接支配者, idom_[a] = b 代表 b 直接支配 a, 支配树中 b 是 a 的 parent
     // (或者 idom_[a] = a 代表 a 没有直接支配者)
-    // 需要填写
     // dom_frontier_ map<BasicBlock*, set<BasicBlock*>> 支配边界
 
     int bb_count = static_cast<int>(reversed_post_order_vec_.size());
-    for (int i = 0; i < bb_count; i++)
-    {
+    for (int i = 0; i < bb_count; i++) {
         auto bb = reversed_post_order_vec_[i];
-        // TODO 计算 bb 的支配边界集合, 填入 dom_frontier_
-        throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
+        auto& pre_blocks = bb->get_pre_basic_blocks();
+        // 只有汇合点(前驱个数 >= 2)才会给支配边界带来贡献
+        if (pre_blocks.size() < 2)
+            continue;
+        // 从每个前驱沿支配树向上爬, 直到遇到 bb 的直接支配者为止:
+        // 路径上经过的每个块 x 都支配 bb 的某个前驱, 但都不严格支配 bb
+        auto bb_idom = idom_[bb];
+        for (auto pre : pre_blocks) {
+            // 不可达块可能出现在可达块的前驱表里(如死代码分支指向汇合点), 它的 idom 恒为
+            // nullptr, 必须跳过: 否则下面沿 idom 上爬会停在 nullptr 上绕不出来
+            if (idom_[pre] == nullptr)
+                continue;
+            auto runner = pre;
+            while (runner != bb_idom) {
+                dom_frontier_[runner].insert(bb);
+                runner = idom_[runner];
+            }
+        }
     }
 }
 
 /**
  * @brief 构建支配树的后继关系
- * 
+ *
  * 基于已计算的直接支配者关系，构建支配树的子节点关系。
  * 如果A是B的直接支配者，则B是A在支配树上的后继。
  */
-void Dominators::create_dom_tree_succ() {
+void Dominators::create_dom_tree_succ()
+{
     // 可能有用的数据结构
     // idom_ map<BasicBlock *, BasicBlock *> 直接支配者, idom_[a] = b 代表 b 直接支配 a, 支配树中 b 是 a 的 parent
-    // 需要填写
     // dom_tree_succ_blocks_ map<BasicBlock*, set<BasicBlock*>> 支配树中后继(孩子)节点
 
-    // TODO 分析得到 f_ 中各个基本块的支配树后继
     // 注意如果 idom_[n] = n, 这意味着 n 没有直接支配者，因此 n 的后继中没有 n
-    throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
+    for (auto& [bb, parent] : idom_) {
+        // 不可达块的 idom 仍是 nullptr; 入口块的 idom 是自己, 它没有父节点
+        if (parent == nullptr || parent == bb)
+            continue;
+        // parent 直接支配 bb, 所以 bb 是 parent 在支配树上的后继
+        dom_tree_succ_blocks_[parent].insert(bb);
+    }
+
+    for (auto& [bb, parent] : idom_) {
+        if (parent == nullptr || parent == bb)
+            continue;
+        dom_tree_succ_blocks_[parent].insert(bb);
+    }
 }
 
 /**
  * @brief 为支配树创建深度优先搜索序
- * 
+ *
  * 该函数通过深度优先搜索遍历支配树，为每个基本块分配两个序号：
  * 1. dom_tree_L_：记录DFS首次访问该节点的时间戳
  * 2. dom_tree_R_：记录DFS完成访问该节点子树的时间戳
- * 
+ *
  * 同时维护：
  * - dom_dfs_order_：按DFS访问顺序记录基本块
  * - dom_post_order_：dom_dfs_order_的逆序
- * 
+ *
  * 这些序号和顺序可用于快速判断支配关系：
  * 如果节点A支配节点B，则A的L值小于B的L值，且A的R值大于B的R值
  */
-void Dominators::create_dom_dfs_order() {
+void Dominators::create_dom_dfs_order()
+{
     // 分析得到 f_ 中各个基本块的支配树上的dfs序L,R
     unsigned int order = 0;
-    std::function<void(BasicBlock *)> dfs = [&](BasicBlock *bb) {
-        dom_tree_L_[bb] = ++ order;
+    std::function<void(BasicBlock*)> dfs = [&](BasicBlock* bb) {
+        dom_tree_L_[bb] = ++order;
         dom_dfs_order_.push_back(bb);
         for (auto succ : dom_tree_succ_blocks_[bb]) {
             dfs(succ);
@@ -215,7 +264,7 @@ void Dominators::create_dom_dfs_order() {
 
 /**
  * @brief 打印函数的直接支配关系
- * 
+ *
  * 该函数以可读格式打印函数中所有基本块的直接支配者(immediate dominator)。
  * 输出格式为：
  * 基本块名: 其直接支配者名
@@ -225,7 +274,7 @@ void Dominators::print_idom() const
 {
     f_->get_parent()->set_print_name();
     int counter = 0;
-    std::map<BasicBlock *, std::string> bb_id;
+    std::map<BasicBlock*, std::string> bb_id;
     for (auto bb : f_->get_basic_blocks()) {
         if (bb->get_name().empty())
             bb_id[bb] = "bb" + std::to_string(counter);
@@ -248,16 +297,17 @@ void Dominators::print_idom() const
 
 /**
  * @brief 打印函数的支配边界信息
- * 
+ *
  * 该函数以可读格式打印函数中所有基本块的支配边界(dominance frontier)。
  * 输出格式为：
  * 基本块名: 支配边界中的基本块列表
  * 如果基本块没有支配边界，则显示"null"。
  */
-void Dominators::print_dominance_frontier() {
+void Dominators::print_dominance_frontier()
+{
     f_->get_parent()->set_print_name();
     int counter = 0;
-    std::map<BasicBlock *, std::string> bb_id;
+    std::map<BasicBlock*, std::string> bb_id;
     for (auto bb : f_->get_basic_blocks()) {
         if (bb->get_name().empty())
             bb_id[bb] = "bb" + std::to_string(counter);
@@ -288,7 +338,7 @@ void Dominators::print_dominance_frontier() {
 
 /**
  * @brief 将函数的控制流图(CFG)导出为图形文件
- * 
+ *
  * 该函数生成函数的控制流图的DOT格式描述，并使用graphviz将其转换为PNG图像。
  * 生成两个文件：
  * - {函数名}_cfg.dot：DOT格式的图形描述
@@ -301,7 +351,7 @@ void Dominators::dump_cfg() const
     bool has_edges = false;
     for (auto bb : f_->get_basic_blocks()) {
         auto succ_blocks = bb->get_succ_basic_blocks();
-        if(!succ_blocks.empty())
+        if (!succ_blocks.empty())
             has_edges = true;
         for (auto succ : succ_blocks) {
             edge_set.push_back('\t' + bb->get_name() + "->" + succ->get_name() + ";\n");
@@ -313,7 +363,7 @@ void Dominators::dump_cfg() const
         auto bb = f_->get_basic_blocks().front();
         digraph += '\t' + bb->get_name() + ";\n";
     } else {
-        for (auto &edge : edge_set) {
+        for (auto& edge : edge_set) {
             digraph += edge;
         }
     }
@@ -328,7 +378,7 @@ void Dominators::dump_cfg() const
 
 /**
  * @brief 将函数的支配树导出为图形文件
- * 
+ *
  * 该函数生成函数的支配树的DOT格式描述，并使用graphviz将其转换为PNG图像。
  * 生成两个文件：
  * - {函数名}_dom_tree.dot：DOT格式的图形描述
@@ -337,7 +387,7 @@ void Dominators::dump_cfg() const
 void Dominators::dump_dominator_tree()
 {
     f_->get_parent()->set_print_name();
-    if(f_->is_declaration())
+    if (f_->is_declaration())
         return;
 
     std::vector<std::string> edge_set;
@@ -357,7 +407,7 @@ void Dominators::dump_dominator_tree()
         BasicBlock* b = f_->get_basic_blocks().front();
         digraph += '\t' + b->get_name() + ";\n";
     } else {
-        for (auto &edge : edge_set) {
+        for (auto& edge : edge_set) {
             digraph += edge;
         }
     }
