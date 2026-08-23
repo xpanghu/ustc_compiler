@@ -7,40 +7,83 @@
 #include "syntax_tree.h"
 #include "syntax_analyzer.h"
 
-int lines=1;
-int pos_start=1;
-int pos_end=1;
+int lines = 1;
+int pos_start = 1;
+int pos_end = 1;
 
 void pass_node(char *text){
      yylval.node = new_syntax_tree_node(text);
 }
 
+/* Advance the line/column counters across `text` (used for skipped
+ * whitespace, newlines and comments, which may contain embedded '\n'). */
+void advance_pos(char *text){
+    int i;
+    for (i = 0; text[i] != '\0'; i++) {
+        if (text[i] == '\n') {
+            lines++;
+            pos_end = 1;
+        } else {
+            pos_end++;
+        }
+    }
+}
+
+/* Record the starting column, move the end column past the token, hand the
+ * token text to bison as a tree leaf, and return the token type. */
+#define emit(tok) { pos_start = pos_end; pos_end += yyleng; pass_node(yytext); return tok; }
+
 /*****************声明和选项设置  end*****************/
 
 %}
 
-%x COMMENT
 
 %%
- /* to do for students */
- /* two cases for you, pass_node will send flex's token to bison */
-\+ 	{pos_start = pos_end; pos_end += 1; pass_node(yytext); return ADD;}
-\-	{pos_start = pos_end; pos_end += 1; pass_node(yytext); return SUB;}
-\*	{pos_start = pos_end; pos_end += 1; pass_node(yytext); return MUL;}
-\/	{pos_start = pos_end; pos_end += 1; pass_node(yytext); return DIV;}
-\<	{pos_start = pos_end; pos_end += 1; pass_node(yytext); return LT;}
-\<=	{pos_start = pos_end; pos_end += 2; pass_node(yytext); return LTE;}
-\>	{pos_start = pos_end; pos_end += 1; pass_node(yytext); return GT;}
-\>=	{pos_start = pos_end; pos_end += 2; pass_node(yytext); return GTE;}
-==	{pos_start = pos_end; pos_end += 2; pass_node(yytext); return EQ;}
-!=	{pos_start = pos_end; pos_end += 2; pass_node(yytext); return NEQ;}
-=	{pos_start = pos_end; pos_end += 1; pass_node(yytext); return ASSIGN;}
-;	{pos_start = pos_end; pos_end += 1; pass_node(yytext); return SEMICOLON;}
-,	{pos_start = pos_end; pos_end += 1; pass_node(yytext); return COMMA;}
- /* TODO: phase1. 请在这里补充其他的词法规则 */
+ /* ---------- skip whitespace, newlines and comments ---------- */
+[ \t\r\f\v]+                    { advance_pos(yytext); }
+\n                              { advance_pos(yytext); }
+"/*"([^*]|\*+[^*/])*\*+"/"      { advance_pos(yytext); }
 
+ /* ---------- keywords ---------- */
+"else"                          { emit(ELSE); }
+"if"                            { emit(IF); }
+"int"                           { emit(INT); }
+"float"                         { emit(FLOAT); }
+"void"                          { emit(VOID); }
+"while"                         { emit(WHILE); }
+"return"                        { emit(RETURN); }
 
-. { pos_start = pos_end; pos_end++; return ERROR; }
+ /* ---------- identifiers (letters only, per lab spec) ---------- */
+[a-zA-Z]+                       { emit(ID); }
 
- /****请在此补全所有flex的模式与动作  end******/
+ /* ---------- numbers ---------- */
+ /* FLOATNUM: 123.  /  123.4  /  .4 ; must come before NUM and before '.',
+  * because flex picks the longest match and these must not split. */
+[0-9]+\.[0-9]*|\.[0-9]+         { emit(FLOATNUM); }
+[0-9]+                          { emit(NUM); }
+
+ /* ---------- operators and punctuation ---------- */
+"+"                             { emit(PLUS); }
+"-"                             { emit(MINUS); }
+"*"                             { emit(MUL); }
+"/"                             { emit(DIV); }
+"<"                             { emit(LT); }
+"<="                            { emit(LE); }
+">"                             { emit(GT); }
+">="                            { emit(GE); }
+"=="                            { emit(EQ); }
+"!="                            { emit(NEQ); }
+"="                             { emit(ASSIGN); }
+";"                             { emit(SEMI); }
+","                             { emit(COMMA); }
+"("                             { emit(LPAREN); }
+")"                             { emit(RPAREN); }
+"["                             { emit(LBRACKET); }
+"]"                             { emit(RBRACKET); }
+"{"                             { emit(LBRACE); }
+"}"                             { emit(RBRACE); }
+
+ /* ---------- any other single character is an error ---------- */
+.                               { emit(ERROR); }
+
 %%
