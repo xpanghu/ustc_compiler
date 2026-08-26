@@ -4,8 +4,7 @@
 
 你们需要 fork 此 repo 到自己的仓库下，随后在自己的仓库中完成实验。
 
-
 ## 测试脚本使用方法
 
-eval_lab2.sh: 
-    没有参数，直接运行即可，结果会生成在 eval_result 下
+* [ ] eval_lab2.sh:
+  没有参数，直接运行即可，结果会生成在 eval_result
