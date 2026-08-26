@@ -1,6 +1,0 @@
-program
---var-declaration: a
---fun-declaration: f
-----compound-stmt
---fun-declaration: g
-----compound-stmt
