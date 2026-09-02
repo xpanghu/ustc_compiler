@@ -48,15 +48,17 @@ syntax_tree_node *node(const char *node_name, int children_num, ...);
 %token <node> LT LE GT GE EQ NEQ ASSIGN
 %token <node> SEMI COMMA LPAREN RPAREN LBRACKET RBRACKET LBRACE RBRACE
 
+/* 悬挂 else 消歧：Epsilon 是虚拟 token，声明顺序在 ELSE 之前 → 优先级更低。
+   无 ELSE 的 if 规则以 %prec Epsilon 标记；发生移进/归约冲突时，bison 比较移进
+   终结符 ELSE 与该规则的优先级，ELSE 更高 → 选择移进，ELSE 绑定最近的 IF。 */
+%nonassoc Epsilon
+%nonassoc ELSE
+
 /* Nonterminals whose semantic value is a tree node. */
 %type <node> program declaration-list declaration var-declaration type-specifier
 %type <node> fun-declaration params param-list param compound-stmt
 %type <node> local-declarations statement-list statement expression-stmt
-/* dangling-else 消歧：if 被拆为 balanced-selection（else 与最近的 IF 配平）
-   和 dangling-selection（else 可能悬空），保证 ELSE 只能匹配最近的 IF。 */
-%type <node> balanced-selection dangling-selection balanced-body dangling-body
-%type <node> closed-iteration closed-body
-%type <node> iteration-stmt return-stmt expression var
+%type <node> selection-stmt iteration-stmt return-stmt expression var
 %type <node> simple-expression relop additive-expression addop term mulop factor
 %type <node> integer float call args arg-list
 
@@ -164,9 +166,7 @@ statement
     { $$ = node("statement", 1, $1); }
     | compound-stmt
     { $$ = node("statement", 1, $1); }
-    | balanced-selection
-    { $$ = node("statement", 1, $1); }
-    | dangling-selection
+    | selection-stmt
     { $$ = node("statement", 1, $1); }
     | iteration-stmt
     { $$ = node("statement", 1, $1); }
@@ -181,57 +181,14 @@ expression-stmt
     { $$ = node("expression-stmt", 1, $1); }
     ;
 
-/* 有 ELSE 且配平的 if：两个分支都只能是"不会悬空 else 的语句"。 */
-balanced-selection
-    : IF LPAREN expression RPAREN balanced-body ELSE balanced-body
-    { $$ = node("selection-stmt", 7, $1, $2, $3, $4, $5, $6, $7); }
-    ;
-
-balanced-body
-    : expression-stmt
-    { $$ = node("statement", 1, $1); }
-    | compound-stmt
-    { $$ = node("statement", 1, $1); }
-    | balanced-selection
-    { $$ = node("statement", 1, $1); }
-    | closed-iteration
-    { $$ = node("statement", 1, $1); }
-    | return-stmt
-    { $$ = node("statement", 1, $1); }
-    ;
-
-/* 循环体本身也可能吸收后面的 ELSE，因此在“不能吞掉外部 ELSE”的上下文中，
-   只允许循环体必然配平的迭代语句。compound-stmt 由大括号定界，无此问题。 */
-closed-iteration
-    : WHILE LPAREN expression RPAREN closed-body
-    { $$ = node("iteration-stmt", 5, $1, $2, $3, $4, $5); }
-    ;
-
-closed-body
-    : expression-stmt
-    { $$ = node("statement", 1, $1); }
-    | compound-stmt
-    { $$ = node("statement", 1, $1); }
-    | balanced-selection
-    { $$ = node("statement", 1, $1); }
-    | closed-iteration
-    { $$ = node("statement", 1, $1); }
-    | return-stmt
-    { $$ = node("statement", 1, $1); }
-    ;
-
-/* 可能悬空的 if：要么整个 if 没有 ELSE，要么其 ELSE 分支自身也可悬空。
-   THEN 分支是任意 statement（含 dangling），因此嵌套 if 优先吸收后面的 ELSE。 */
-dangling-selection
-    : IF LPAREN expression RPAREN statement
+/* 悬挂 else 消歧：无 ELSE 的规则标记为 %prec Epsilon（优先级低于 ELSE）。
+   在 “IF ... statement” 之后遇到 ELSE 的移进/归约冲突处，移进终结符 ELSE 的
+   优先级更高，bison 选择移进 → ELSE 总是绑定到最近的 IF。 */
+selection-stmt
+    : IF LPAREN expression RPAREN statement   %prec Epsilon
     { $$ = node("selection-stmt", 5, $1, $2, $3, $4, $5); }
-    | IF LPAREN expression RPAREN balanced-body ELSE dangling-body
+    | IF LPAREN expression RPAREN statement ELSE statement
     { $$ = node("selection-stmt", 7, $1, $2, $3, $4, $5, $6, $7); }
-    ;
-
-dangling-body
-    : dangling-selection
-    { $$ = node("statement", 1, $1); }
     ;
 
 iteration-stmt
