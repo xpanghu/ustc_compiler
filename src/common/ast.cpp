@@ -38,8 +38,7 @@ ASTNode* AST::transform_node_iter(syntax_tree_node* n)
     if (_STR_EQ(n->name, "program")) {
         auto node = new ASTProgram();
         // flatten declaration list
-        std::stack<syntax_tree_node*>
-            s; // 为什么这里要用stack呢？如果用其他数据结构应该如何实现
+        std::stack<syntax_tree_node*> s; // 为什么这里要用stack呢？如果用其他数据结构应该如何实现
         auto list_ptr = n->children[0];
         while (list_ptr->children_num == 2) {
             s.push(list_ptr->children[1]);
@@ -110,11 +109,9 @@ ASTNode* AST::transform_node_iter(syntax_tree_node* n)
         std::stack<syntax_tree_node*> s;
         auto list_ptr = n->children[3]->children[0];
         if (list_ptr->children_num != 0) {
-            if (list_ptr->children_num == 3) {
-                while (list_ptr->children_num == 3) {
-                    s.push(list_ptr->children[2]);
-                    list_ptr = list_ptr->children[0];
-                }
+            while (list_ptr->children_num == 3) {
+                s.push(list_ptr->children[2]);
+                list_ptr = list_ptr->children[0];
             }
             s.push(list_ptr->children[0]);
 
@@ -330,18 +327,18 @@ ASTNode* AST::transform_node_iter(syntax_tree_node* n)
               additive-expression -> additive-expression addop term | term
             */
             // additive_expression, term, op
-            auto add_expr_node = 
+            auto add_expr_node =
                 static_cast<ASTAdditiveExpression*>(
                     transform_node_iter(n->children[0]));
-            node->additive_expression = 
+            node->additive_expression =
                 std::shared_ptr<ASTAdditiveExpression>(add_expr_node);
             auto op_name = n->children[1]->children[0]->name;
-            if (_STR_EQ(op_name, "+")) 
+            if (_STR_EQ(op_name, "+"))
                 node->op = OP_PLUS;
             else if (_STR_EQ(op_name, "-"))
                 node->op = OP_MINUS;
 
-            auto term_node = 
+            auto term_node =
                 static_cast<ASTTerm*>(transform_node_iter(n->children[2]));
             node->term = std::shared_ptr<ASTTerm>(term_node);
         } else {
