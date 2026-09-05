@@ -10,7 +10,6 @@ target_link_libraries(
     common
     codegen
     syntax
-    stdc++fs
 )
 
 install(

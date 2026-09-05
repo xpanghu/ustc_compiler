@@ -105,9 +105,23 @@ class CminusfBuilder : public ASTVisitor {
     Scope scope;
     std::unique_ptr<Module> module;
 
+    // ---- helpers used by the visit implementations ----
+    BasicBlock *new_block();
+    Value *unify_int(Value *val);   // i1 -> i32, others unchanged
+    Value *to_int32(Value *val);    // cast any scalar value to i32
+    Value *to_float(Value *val);    // cast any scalar value to float
+    Value *to_cond(Value *val);     // cast any scalar value to an i1 condition
+    Value *cast_value(Value *val, Type *target); // cast to an int/float target
+    Value *arith(Value *lhs, Value *rhs, int op);
+    Value *compare(Value *lhs, Value *rhs, RelOp op);
+    Value *var_addr(ASTVar &node);      // storage addr of a scalar/element
+    Value *array_decay(ASTVar &node);   // element-0 pointer used as fn argument
+    Value *checked_index(Value *idx);   // negative index runtime check
+
     struct {
         // function that is being built
         Function *func = nullptr;
-        // TODO: you should add more fields to store state
+        // entry block of the current function (allocas are hoisted here)
+        BasicBlock *block = nullptr;
     } context;
 };

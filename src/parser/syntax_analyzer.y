@@ -28,102 +28,290 @@ void yyerror(const char *s);
 syntax_tree_node *node(const char *node_name, int children_num, ...);
 %}
 
-/* Complete this definition.
-   Hint: See pass_node(), node(), and syntax_tree.h.
-         Use forward declaring. */
-%union {
-     struct _syntax_tree_node * node;
-	 char * name;
+/* Make the generated header (syntax_analyzer.h) self-contained: lexer.c and
+   the flex scanner include it without including syntax_tree.h themselves. */
+%code requires {
+    #include "syntax_tree.h"
 }
 
-/* Your tokens here. */
-%token <node> ERROR
-%token <node> ADD
-%token <node> SUB
-%token <node> MUL
-%token <node> DIV
-%token <node> LT
-%token <node> LTE
-%token <node> GT
-%token <node> GTE
-%token <node> EQ
-%token <node> NEQ
-%token <node> ASSIGN
-%token <node> SEMICOLON
-%token <node> COMMA
-%token <node> LPARENTHESE
-%token <node> RPARENTHESE
-%token <node> LBRACKET
-%token <node> RBRACKET
-%token <node> LBRACE
-%token <node> RBRACE
-%token <node> ELSE
-%token <node> IF
-%token <node> INT
-%token <node> RETURN
-%token <node> VOID
-%token <node> WHILE
-%token <node> IDENTIFIER
-%token <node> INTEGER
-%token <node> FLOAT             // 这个token 对应float 关键字
-%token <node> FLOATPOINT        // 这个token 对应 浮点数值, 如果分不清的同学可以参考type-specifier的文法和对应产生式规则
-//%token <node> EOL
-//%token <node> BLANK
-//%token <node> COMMENT
-%type <node> program declaration-list declaration var-declaration type-specifier fun-declaration params param-list param compound-stmt local-declarations statement-list statement expression-stmt selection-stmt iteration-stmt return-stmt expression var simple-expression relop additive-expression addop term mulop factor integer float call args arg-list
+/* Every token carries a syntax-tree leaf created by the lexer's pass_node().
+   The union must expose that 'node' member, otherwise yylval.node is undefined. */
+%union {
+    syntax_tree_node *node;
+}
 
-/* compulsory starting symbol */
+/* C-Minus tokens.  Each one hands a tree leaf (its literal text) to bison. */
+%token <node> ERROR
+%token <node> ID NUM FLOATNUM
+%token <node> ELSE IF INT FLOAT VOID WHILE RETURN
+%token <node> PLUS MINUS MUL DIV
+%token <node> LT LE GT GE EQ NEQ ASSIGN
+%token <node> SEMI COMMA LPAREN RPAREN LBRACKET RBRACKET LBRACE RBRACE
+
+/* 悬挂 else 消歧：Epsilon 是虚拟 token，声明顺序在 ELSE 之前 → 优先级更低。
+   无 ELSE 的 if 规则以 %prec Epsilon 标记；发生移进/归约冲突时，bison 比较移进
+   终结符 ELSE 与该规则的优先级，ELSE 更高 → 选择移进，ELSE 绑定最近的 IF。 */
+%nonassoc Epsilon
+%nonassoc ELSE
+
+/* Nonterminals whose semantic value is a tree node. */
+%type <node> program declaration-list declaration var-declaration type-specifier
+%type <node> fun-declaration params param-list param compound-stmt
+%type <node> local-declarations statement-list statement expression-stmt
+%type <node> selection-stmt iteration-stmt return-stmt expression var
+%type <node> simple-expression relop additive-expression addop term mulop factor
+%type <node> integer float call args arg-list
+
 %start program
 
 %%
-/* Your rules here. TA has completed many */
 
-program : 	declaration-list {$$ = node( "program", 1, $1); gt->root = $$;}
-		;
+/* ---------------- Top level ---------------- */
 
-declaration-list 	: 	declaration-list declaration {$$ = node( "declaration-list", 2, $1, $2);}
-					|	declaration {$$ = node( "declaration-list", 1, $1);}
-					;
+program
+    : declaration-list
+    { 
+        $$ = node("program", 1, $1);
+        gt->root = $$; 
+    }
+    ;
 
-declaration : 	var-declaration {$$ = node( "declaration", 1, $1);}
-			| 	fun-declaration {$$ = node( "declaration", 1, $1);}
-			;
+declaration-list
+    : declaration-list declaration
+    { 
+        $$ = node("declaration-list", 2, $1, $2);
+    }
+    | declaration
+    { 
+        $$ = node("declaration-list", 1, $1);
+    }
+    ;
 
-var-declaration : 	type-specifier IDENTIFIER SEMICOLON {$$ = node( "var-declaration", 3, $1, $2, $3);}
-                | 	type-specifier IDENTIFIER LBRACKET INTEGER RBRACKET SEMICOLON {$$ = node( "var-declaration", 6, $1, $2, $3, $4, $5, $6);}
-                ;
+declaration
+    : var-declaration
+    { $$ = node("declaration", 1, $1); }
+    | fun-declaration
+    { $$ = node("declaration", 1, $1); }
+    ;
 
-type-specifier 	: 	INT {$$ = node( "type-specifier", 1, $1);}
-				| 	FLOAT { $$ = node( "type-specifier", 1, $1); }
-				| 	VOID {$$ = node( "type-specifier", 1, $1);}
-				;
+/* ---------------- Declarations ---------------- */
 
-fun-declaration : 	type-specifier IDENTIFIER LPARENTHESE params RPARENTHESE compound-stmt {$$ = node( "fun-declaration", 6, $1, $2, $3, $4, $5, $6);}
-				;
+var-declaration
+    : type-specifier ID SEMI
+    { $$ = node("var-declaration", 3, $1, $2, $3); }
+    | type-specifier ID LBRACKET NUM RBRACKET SEMI
+    { $$ = node("var-declaration", 6, $1, $2, $3, $4, $5, $6); }
+    ;
 
-params 	: 	param-list {$$ = node( "params", 1, $1);}
-		|	VOID {$$ = node( "params", 1, $1);}
-		;
+type-specifier
+    : INT
+    { $$ = node("type-specifier", 1, $1); }
+    | VOID
+    { $$ = node("type-specifier", 1, $1); }
+    | FLOAT
+    { $$ = node("type-specifier", 1, $1); }
+    ;
 
-param-list 	: 	param-list COMMA param {$$ = node( "param-list", 3, $1, $2, $3);}
-			| 	param {$$ = node( "param-list", 1, $1);}
-			;
+fun-declaration
+    : type-specifier ID LPAREN params RPAREN compound-stmt
+    { $$ = node("fun-declaration", 6, $1, $2, $3, $4, $5, $6); }
+    ;
 
-param 	: 	type-specifier IDENTIFIER {$$ = node( "param", 2, $1, $2);}
-		| 	type-specifier IDENTIFIER LBRACKET RBRACKET {$$ = node( "param", 4, $1, $2, $3, $4);}
-		;
+/* ---------------- Function parameters ---------------- */
 
-compound-stmt 	: 	LBRACE local-declarations statement-list RBRACE {$$ = node( "compound-stmt", 4, $1, $2, $3, $4);}
-				;
+params
+    : param-list
+    { $$ = node("params", 1, $1); }
+    | VOID            /* "void" means no parameters */
+    { $$ = node("params", 1, $1); }
+    ;
 
-local-declarations 	: 	local-declarations var-declaration {$$ = node( "local-declarations", 2, $1, $2);}
-| 	{$$ = node( "local-declarations",0);}
-					;
+param-list
+    : param-list COMMA param
+    { $$ = node("param-list", 3, $1, $2, $3); }
+    | param
+    { $$ = node("param-list", 1, $1); }
+    ;
 
-statement-list 	: 	statement-list statement {$$ = node( "statement-list", 2, $1, $2);}
-| 	{$$ = node( "statement-list",0);}
-                    ;
-// TODO: phase1. 补充其他的文法产生式逻辑
+param
+    : type-specifier ID
+    { $$ = node("param", 2, $1, $2); }
+    | type-specifier ID LBRACKET RBRACKET    /* array parameter */
+    { $$ = node("param", 4, $1, $2, $3, $4); }
+    ;
+
+/* ---------------- Statements ---------------- */
+
+compound-stmt
+    : LBRACE local-declarations statement-list RBRACE
+    { $$ = node("compound-stmt", 4, $1, $2, $3, $4); }
+    ;
+
+local-declarations
+    : local-declarations var-declaration
+    { $$ = node("local-declarations", 2, $1, $2); }
+    | /* empty */
+    { $$ = node("local-declarations", 0); }
+    ;
+
+statement-list
+    : statement-list statement
+    { $$ = node("statement-list", 2, $1, $2); }
+    | /* empty */
+    { $$ = node("statement-list", 0); }
+    ;
+
+statement
+    : expression-stmt
+    { $$ = node("statement", 1, $1); }
+    | compound-stmt
+    { $$ = node("statement", 1, $1); }
+    | selection-stmt
+    { $$ = node("statement", 1, $1); }
+    | iteration-stmt
+    { $$ = node("statement", 1, $1); }
+    | return-stmt
+    { $$ = node("statement", 1, $1); }
+    ;
+
+expression-stmt
+    : expression SEMI
+    { $$ = node("expression-stmt", 2, $1, $2); }
+    | SEMI            /* empty statement */
+    { $$ = node("expression-stmt", 1, $1); }
+    ;
+
+/* 悬挂 else 消歧：无 ELSE 的规则标记为 %prec Epsilon（优先级低于 ELSE）。
+   在 “IF ... statement” 之后遇到 ELSE 的移进/归约冲突处，移进终结符 ELSE 的
+   优先级更高，bison 选择移进 → ELSE 总是绑定到最近的 IF。 */
+selection-stmt
+    : IF LPAREN expression RPAREN statement   %prec Epsilon
+    { $$ = node("selection-stmt", 5, $1, $2, $3, $4, $5); }
+    | IF LPAREN expression RPAREN statement ELSE statement
+    { $$ = node("selection-stmt", 7, $1, $2, $3, $4, $5, $6, $7); }
+    ;
+
+iteration-stmt
+    : WHILE LPAREN expression RPAREN statement
+    { $$ = node("iteration-stmt", 5, $1, $2, $3, $4, $5); }
+    ;
+
+return-stmt
+    : RETURN SEMI
+    { $$ = node("return-stmt", 2, $1, $2); }
+    | RETURN expression SEMI
+    { $$ = node("return-stmt", 3, $1, $2, $3); }
+    ;
+
+/* ---------------- Expressions ---------------- */
+
+expression
+    : var ASSIGN expression
+    { $$ = node("expression", 3, $1, $2, $3); }
+    | simple-expression
+    { $$ = node("expression", 1, $1); }
+    ;
+
+var
+    : ID
+    { $$ = node("var", 1, $1); }
+    | ID LBRACKET expression RBRACKET        /* array element */
+    { $$ = node("var", 4, $1, $2, $3, $4); }
+    ;
+
+simple-expression
+    : additive-expression relop additive-expression
+    { $$ = node("simple-expression", 3, $1, $2, $3); }
+    | additive-expression
+    { $$ = node("simple-expression", 1, $1); }
+    ;
+
+relop
+    : LE
+    { $$ = node("relop", 1, $1); }
+    | LT
+    { $$ = node("relop", 1, $1); }
+    | GT
+    { $$ = node("relop", 1, $1); }
+    | GE
+    { $$ = node("relop", 1, $1); }
+    | EQ
+    { $$ = node("relop", 1, $1); }
+    | NEQ
+    { $$ = node("relop", 1, $1); }
+    ;
+
+additive-expression
+    : additive-expression addop term
+    { $$ = node("additive-expression", 3, $1, $2, $3); }
+    | term
+    { $$ = node("additive-expression", 1, $1); }
+    ;
+
+addop
+    : PLUS
+    { $$ = node("addop", 1, $1); }
+    | MINUS
+    { $$ = node("addop", 1, $1); }
+    ;
+
+term
+    : term mulop factor
+    { $$ = node("term", 3, $1, $2, $3); }
+    | factor
+    { $$ = node("term", 1, $1); }
+    ;
+
+mulop
+    : MUL
+    { $$ = node("mulop", 1, $1); }
+    | DIV
+    { $$ = node("mulop", 1, $1); }
+    ;
+
+factor
+    : LPAREN expression RPAREN
+    { $$ = node("factor", 3, $1, $2, $3); }
+    | var
+    { $$ = node("factor", 1, $1); }
+    | call
+    { $$ = node("factor", 1, $1); }
+    | integer
+    { $$ = node("factor", 1, $1); }
+    | float
+    { $$ = node("factor", 1, $1); }
+    ;
+
+integer
+    : NUM
+    { $$ = node("integer", 1, $1); }
+    ;
+
+float
+    : FLOATNUM
+    { $$ = node("float", 1, $1); }
+    ;
+
+/* ---------------- Function calls ---------------- */
+
+call
+    : ID LPAREN args RPAREN
+    { $$ = node("call", 4, $1, $2, $3, $4); }
+    ;
+
+args
+    : arg-list
+    { $$ = node("args", 1, $1); }
+    | /* empty */
+    { $$ = node("args", 0); }
+    ;
+
+arg-list
+    : arg-list COMMA expression
+    { $$ = node("arg-list", 3, $1, $2, $3); }
+    | expression
+    { $$ = node("arg-list", 1, $1); }
+    ;
 
 %%
 
@@ -152,6 +340,7 @@ syntax_tree *parse(const char *input_path)
 
     lines = pos_start = pos_end = 1;
     gt = new_syntax_tree();
+    gt->root = NULL;   // so a failed parse prints nothing instead of garbage
     yyrestart(yyin);
     yyparse();
     return gt;
@@ -164,7 +353,6 @@ syntax_tree_node *node(const char *name, int children_num, ...)
 {
     syntax_tree_node *p = new_syntax_tree_node(name);
     syntax_tree_node *child;
-    // 这里表示 epsilon结点是通过 children_num == 0 来判断的
     if (children_num == 0) {
         child = new_syntax_tree_node("epsilon");
         syntax_tree_add_child(p, child);
