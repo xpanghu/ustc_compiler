@@ -1,0 +1,4 @@
+int main(void) {
+    float a;
+    return 1; 
+}

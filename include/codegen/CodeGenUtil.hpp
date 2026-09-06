@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdexcept>
+#include <string>
 
 /* 关于位宽 */
 #define IMM_12_MAX 0x7FF

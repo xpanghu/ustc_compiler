@@ -215,21 +215,39 @@ void CodeGen::gen_prologue() {
 }
 
 void CodeGen::gen_epilogue() {
-    // TODO 根据你的理解设定函数的 epilogue
-    throw not_implemented_error{__FUNCTION__};
+    append_inst(func_exit_label_name(context.func), ASMInstruction::Label);
+    // fp 保存的是进入函数时的 sp，也适用于超出立即数范围的大栈帧。
+    append_inst("addi.d $sp, $fp, 0");
+    append_inst("ld.d $ra, $sp, -8");
+    append_inst("ld.d $fp, $sp, -16");
+    append_inst("jr $ra");
 }
 
 
 void CodeGen::gen_ret() {
-    // TODO 函数返回，思考如何处理返回值、寄存器备份，如何返回调用者地址
-    throw not_implemented_error{__FUNCTION__};
+    auto *ret = static_cast<ReturnInst *>(context.inst);
+    if (ret->is_void_ret()) {
+        // 课程约定 void main 也必须返回退出状态 0。
+        append_inst("addi.w $a0, $zero, 0");
+    } else {
+        auto *value = ret->get_operand(0);
+        if (value->get_type()->is_float_type()) {
+            load_to_freg(value, FReg::fa(0));
+        } else {
+            load_to_greg(value, Reg::a(0));
+        }
+    }
+    append_inst("b " + func_exit_label_name(context.func));
 }
 
 void CodeGen::gen_br() {
     auto *branchInst = static_cast<BranchInst *>(context.inst);
     if (branchInst->is_cond_br()) {
-        // TODO 补全条件跳转的情况
-        throw not_implemented_error{__FUNCTION__};
+        load_to_greg(branchInst->get_condition(), Reg::t(0));
+        auto *true_bb = static_cast<BasicBlock *>(branchInst->get_operand(1));
+        auto *false_bb = static_cast<BasicBlock *>(branchInst->get_operand(2));
+        append_inst("bnez", {"$t0", label_name(true_bb)});
+        append_inst("b " + label_name(false_bb));
     } else {
         auto *branchbb = static_cast<BasicBlock *>(branchInst->get_operand(0));
         append_inst("b " + label_name(branchbb));
@@ -259,16 +277,41 @@ void CodeGen::gen_binary() {
 }
 
 void CodeGen::gen_float_binary() {
-    // TODO 浮点类型的二元指令
-    throw not_implemented_error{__FUNCTION__};
+    load_to_freg(context.inst->get_operand(0), FReg::ft(0));
+    load_to_freg(context.inst->get_operand(1), FReg::ft(1));
+    switch (context.inst->get_instr_type()) {
+    case Instruction::fadd:
+        append_inst("fadd.s $ft2, $ft0, $ft1");
+        break;
+    case Instruction::fsub:
+        append_inst("fsub.s $ft2, $ft0, $ft1");
+        break;
+    case Instruction::fmul:
+        append_inst("fmul.s $ft2, $ft0, $ft1");
+        break;
+    case Instruction::fdiv:
+        append_inst("fdiv.s $ft2, $ft0, $ft1");
+        break;
+    default:
+        throw unreachable_error{__FUNCTION__};
+    }
+    store_from_freg(context.inst, FReg::ft(2));
 }
 
 void CodeGen::gen_alloca() {
     /* 我们已经为 alloca 的内容分配空间，在此我们还需保存 alloca
      * 指令自身产生的定值，即指向 alloca 空间起始地址的指针
      */
-    // TODO 将 alloca 出空间的起始地址保存在栈帧上
-    throw not_implemented_error{__FUNCTION__};
+    auto *alloca = static_cast<AllocaInst *>(context.inst);
+    auto offset = context.offset_map.at(alloca) -
+                  static_cast<int>(alloca->get_alloca_type()->get_size());
+    if (IS_IMM_12(offset)) {
+        append_inst("addi.d", {"$t0", "$fp", std::to_string(offset)});
+    } else {
+        load_large_int64(offset, Reg::t(0));
+        append_inst("add.d $t0, $fp, $t0");
+    }
+    store_from_greg(alloca, Reg::t(0));
 }
 
 void CodeGen::gen_load() {
@@ -280,34 +323,129 @@ void CodeGen::gen_load() {
         append_inst("fld.s $ft0, $t0, 0");
         store_from_freg(context.inst, FReg::ft(0));
     } else {
-        // TODO load 整数类型的数据
-        throw not_implemented_error{__FUNCTION__};
+        if (type->is_int1_type()) {
+            append_inst("ld.b $t0, $t0, 0");
+        } else if (type->is_int32_type()) {
+            append_inst("ld.w $t0, $t0, 0");
+        } else {
+            assert(type->is_pointer_type());
+            append_inst("ld.d $t0, $t0, 0");
+        }
+        store_from_greg(context.inst, Reg::t(0));
     }
 }
 
 void CodeGen::gen_store() {
-    // TODO 翻译 store 指令
-    throw not_implemented_error{__FUNCTION__};
+    auto *value = context.inst->get_operand(0);
+    auto *ptr = context.inst->get_operand(1);
+    auto *type = value->get_type();
+    load_to_greg(ptr, Reg::t(0));
+    if (type->is_float_type()) {
+        load_to_freg(value, FReg::ft(0));
+        append_inst("fst.s $ft0, $t0, 0");
+    } else {
+        load_to_greg(value, Reg::t(1));
+        if (type->is_int1_type()) {
+            append_inst("st.b $t1, $t0, 0");
+        } else if (type->is_int32_type()) {
+            append_inst("st.w $t1, $t0, 0");
+        } else {
+            assert(type->is_pointer_type());
+            append_inst("st.d $t1, $t0, 0");
+        }
+    }
 }
 
 void CodeGen::gen_icmp() {
-    // TODO 处理各种整数比较的情况
-    throw not_implemented_error{__FUNCTION__};
+    load_to_greg(context.inst->get_operand(0), Reg::t(0));
+    load_to_greg(context.inst->get_operand(1), Reg::t(1));
+    switch (context.inst->get_instr_type()) {
+    case Instruction::lt:
+        append_inst("slt $t2, $t0, $t1");
+        break;
+    case Instruction::gt:
+        append_inst("slt $t2, $t1, $t0");
+        break;
+    case Instruction::ge:
+        append_inst("slt $t2, $t0, $t1");
+        append_inst("xori $t2, $t2, 1");
+        break;
+    case Instruction::le:
+        append_inst("slt $t2, $t1, $t0");
+        append_inst("xori $t2, $t2, 1");
+        break;
+    case Instruction::eq:
+        append_inst("xor $t2, $t0, $t1");
+        append_inst("sltui $t2, $t2, 1");
+        break;
+    case Instruction::ne:
+        append_inst("xor $t2, $t0, $t1");
+        append_inst("sltu $t2, $zero, $t2");
+        break;
+    default:
+        throw unreachable_error{__FUNCTION__};
+    }
+    store_from_greg(context.inst, Reg::t(2));
 }
 
 void CodeGen::gen_fcmp() {
-    // TODO 处理各种浮点数比较的情况
-    throw not_implemented_error{__FUNCTION__};
+    load_to_freg(context.inst->get_operand(0), FReg::ft(0));
+    load_to_freg(context.inst->get_operand(1), FReg::ft(1));
+    // LightIR 的六种浮点谓词均为 unordered，NaN 输入时结果为真。
+    switch (context.inst->get_instr_type()) {
+    case Instruction::flt:
+        append_inst("fcmp.cult.s $fcc0, $ft0, $ft1");
+        break;
+    case Instruction::fgt:
+        append_inst("fcmp.cult.s $fcc0, $ft1, $ft0");
+        break;
+    case Instruction::fle:
+        append_inst("fcmp.cule.s $fcc0, $ft0, $ft1");
+        break;
+    case Instruction::fge:
+        append_inst("fcmp.cule.s $fcc0, $ft1, $ft0");
+        break;
+    case Instruction::feq:
+        append_inst("fcmp.cueq.s $fcc0, $ft0, $ft1");
+        break;
+    case Instruction::fne:
+        append_inst("fcmp.cune.s $fcc0, $ft0, $ft1");
+        break;
+    default:
+        throw unreachable_error{__FUNCTION__};
+    }
+    append_inst("movcf2gr $t0, $fcc0");
+    store_from_greg(context.inst, Reg::t(0));
 }
 
 void CodeGen::gen_zext() {
-    // TODO 将窄位宽的整数数据进行零扩展
-    throw not_implemented_error{__FUNCTION__};
+    load_to_greg(context.inst->get_operand(0), Reg::t(0));
+    // 本框架的窄整数类型只有 i1，保留最低位并清零其余位。
+    append_inst("andi $t0, $t0, 1");
+    store_from_greg(context.inst, Reg::t(0));
 }
 
 void CodeGen::gen_call() {
-    // TODO 函数调用，注意我们只需要通过寄存器传递参数，即不需考虑栈上传参的情况
-    throw not_implemented_error{__FUNCTION__};
+    unsigned garg_cnt = 0;
+    unsigned farg_cnt = 0;
+    // 与 gen_prologue 对称：整数/指针参数和浮点参数分别计数。
+    for (unsigned i = 1; i < context.inst->get_num_operand(); ++i) {
+        auto *arg = context.inst->get_operand(i);
+        if (arg->get_type()->is_float_type()) {
+            load_to_freg(arg, FReg::fa(farg_cnt++));
+        } else {
+            load_to_greg(arg, Reg::a(garg_cnt++));
+        }
+    }
+    append_inst("bl " + context.inst->get_operand(0)->get_name());
+    // SSA 值已经保存在栈上，无需额外保存调用者临时寄存器。
+    if (!context.inst->is_void()) {
+        if (context.inst->get_type()->is_float_type()) {
+            store_from_freg(context.inst, FReg::fa(0));
+        } else {
+            store_from_greg(context.inst, Reg::a(0));
+        }
+    }
 }
 
 /*
@@ -340,18 +478,35 @@ void CodeGen::gen_call() {
  *       +
  */
 void CodeGen::gen_gep() {
-    // TODO 计算内存地址
-    throw not_implemented_error{__FUNCTION__};
+    auto *ptr = context.inst->get_operand(0);
+    auto *element_type = ptr->get_type()->get_pointer_element_type();
+    load_to_greg(ptr, Reg::t(0));
+    for (unsigned i = 1; i < context.inst->get_num_operand(); ++i) {
+        // 首下标跨越整个 pointee，后续下标逐层进入数组元素。
+        if (i > 1) {
+            element_type = element_type->get_array_element_type();
+        }
+        load_to_greg(context.inst->get_operand(i), Reg::t(1));
+        load_large_int64(element_type->get_size(), Reg::t(2));
+        append_inst("mul.d $t1, $t1, $t2");
+        append_inst("add.d $t0, $t0, $t1");
+    }
+    store_from_greg(context.inst, Reg::t(0));
 }
 
 void CodeGen::gen_sitofp() {
-    // TODO 整数转向浮点数
-    throw not_implemented_error{__FUNCTION__};
+    load_to_greg(context.inst->get_operand(0), Reg::t(0));
+    append_inst("movgr2fr.w $ft0, $t0");
+    append_inst("ffint.s.w $ft0, $ft0");
+    store_from_freg(context.inst, FReg::ft(0));
 }
 
 void CodeGen::gen_fptosi() {
-    // TODO 浮点数转向整数，注意向下取整(round to zero)
-    throw not_implemented_error{__FUNCTION__};
+    load_to_freg(context.inst->get_operand(0), FReg::ft(0));
+    // 向零截断而非向负无穷取整，例如 -3.9 转换为 -3。
+    append_inst("ftintrz.w.s $ft0, $ft0");
+    append_inst("movfr2gr.s $t0, $ft0");
+    store_from_greg(context.inst, Reg::t(0));
 }
 
 void CodeGen::run() {
@@ -389,7 +544,7 @@ void CodeGen::run() {
     }
 
     // 函数代码段
-    output.emplace_back(".text", ASMInstruction::Atrribute);
+    append_inst(".text", ASMInstruction::Instruction);
     for (auto &func : m->get_functions()) {
         if (not func.is_declaration()) {
             // 更新 context

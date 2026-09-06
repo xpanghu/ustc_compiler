@@ -1,0 +1,15 @@
+int truncate(float x) {
+    return x;
+}
+
+float convert(int x) {
+    return x;
+}
+
+void main(void) {
+    output(truncate(0.0 - 3.9));
+    output(truncate(3.9));
+    output(truncate(0.0 - 0.9));
+    outputFloat(convert(0 - 12345));
+    outputFloat((7.0 - 2.0) * 3.0 / 2.0);
+}

@@ -1,0 +1,20 @@
+float adjust(float a[], int i, float x) {
+    a[i] = a[i] + x;
+    return a[i];
+}
+
+int main(void) {
+    int data[2048];
+    float values[1024];
+    int i;
+    float result;
+    i = 2047;
+    data[0] = 123456789;
+    data[i] = 0 - 17;
+    values[1023] = 1.25;
+    result = adjust(values, 1023, 2.5);
+    output(data[0]);
+    output(data[i]);
+    outputFloat(result);
+    return 0;
+}
