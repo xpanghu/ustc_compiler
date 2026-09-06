@@ -3,3 +3,4 @@ build/
 .cache/
 /tests/1-parser/output_student/
 /tests/1-parser/output_student_ast/
+/tests/personal-test/

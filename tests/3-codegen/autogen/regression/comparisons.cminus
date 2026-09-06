@@ -1,0 +1,26 @@
+int icmp(int a, int b) {
+    return (a >= b) + (a > b) * 2 + (a <= b) * 4 +
+           (a < b) * 8 + (a == b) * 16 + (a != b) * 32;
+}
+
+int fcmp(float a, float b) {
+    return (a >= b) + (a > b) * 2 + (a <= b) * 4 +
+           (a < b) * 8 + (a == b) * 16 + (a != b) * 32;
+}
+
+int main(void) {
+    float nan;
+    float zero;
+    output(icmp(0 - 2147483647 - 1, 2147483647));
+    output(icmp(2147483647, 0 - 2147483647 - 1));
+    output(icmp(0 - 7, 0 - 7));
+    output(fcmp(0.0 - 3.5, 2.0));
+    output(fcmp(2.0, 0.0 - 3.5));
+    output(fcmp(2.0, 2.0));
+    zero = 0.0;
+    nan = zero / zero;
+    /* Match LightIR's unordered predicates, including ueq and ult. */
+    output(fcmp(nan, 1.0));
+    output(fcmp(1.0, nan));
+    return 0;
+}

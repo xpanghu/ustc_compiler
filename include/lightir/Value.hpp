@@ -32,7 +32,7 @@ class Value {
     virtual std::string print() = 0;
 
     template<typename T>
-    T *as()
+    [[nodiscard]] T *as()
     {
       static_assert(std::is_base_of<Value, T>::value, "T must be a subclass of Value");
       const auto ptr = dynamic_cast<T*>(this);
