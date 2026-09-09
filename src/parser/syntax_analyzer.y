@@ -56,6 +56,14 @@ syntax_tree_node *node(const char *node_name, int children_num, ...);
 %type <node> simple-expression relop additive-expression addop term mulop factor
 %type <node> integer float call args arg-list
 
+/* Operator precedence, lowest first.  Epsilon is a virtual token that never
+   reaches the parser: it only exists so that the IF-without-ELSE rule can be
+   given a precedence lower than ELSE, which resolves the dangling-else
+   shift/reduce conflict by always shifting ELSE (binding it to the nearest
+   IF, i.e. the usual C semantics). */
+%nonassoc Epsilon
+%nonassoc ELSE
+
 %start program
 
 %%
@@ -142,7 +150,7 @@ expression-stmt: expression SEMI
                  { $$ = node("expression-stmt", 1, $1); }
                ;
 
-selection-stmt: IF LPAREN expression RPAREN statement
+selection-stmt: IF LPAREN expression RPAREN statement %prec Epsilon
                 { $$ = node("selection-stmt", 5, $1, $2, $3, $4, $5); }
               | IF LPAREN expression RPAREN statement ELSE statement
                 { $$ = node("selection-stmt", 7, $1, $2, $3, $4, $5, $6, $7); }
