@@ -14,11 +14,11 @@ int main() {
     auto *codegen = new CodeGen(module);
 
     // 告诉汇编器将汇编放到代码段
-    codegen->append_inst(".text", ASMInstruction::Atrribute);
+    codegen->append_inst(".text", ASMInstruction::Attribute);
 
     declare_global(codegen);
 
-    codegen->append_inst(".text", ASMInstruction::Atrribute);
+    codegen->append_inst(".text", ASMInstruction::Attribute);
     translate_main(codegen);
 
     std::cout << codegen->print();
@@ -31,13 +31,13 @@ void declare_global(CodeGen *codegen) {
     // 声明全局变量 a
     // 将 a 放到 .bss 段中
     codegen->append_inst(".section .bss, \"aw\", @nobits",
-                         ASMInstruction::Atrribute);
+                         ASMInstruction::Attribute);
     // 标记 a 为全局变量
-    codegen->append_inst(".globl a", ASMInstruction::Atrribute);
+    codegen->append_inst(".globl a", ASMInstruction::Attribute);
     // 标记 a 为数据对象 (变量)
-    codegen->append_inst(".type a, @object", ASMInstruction::Atrribute);
+    codegen->append_inst(".type a, @object", ASMInstruction::Attribute);
     // 标记 a 的大小为 4 字节
-    codegen->append_inst(".size a, 4", ASMInstruction::Atrribute);
+    codegen->append_inst(".size a, 4", ASMInstruction::Attribute);
     // a 的标签
     codegen->append_inst("a", ASMInstruction::Label);
     // 为 a 分配空间
@@ -48,8 +48,8 @@ void translate_main(CodeGen *codegen) {
     std::unordered_map<std::string, int> offset_map;
 
     /* 声明 main 函数 */
-    codegen->append_inst(".globl main", ASMInstruction::Atrribute);
-    codegen->append_inst(".type main, @function", ASMInstruction::Atrribute);
+    codegen->append_inst(".globl main", ASMInstruction::Attribute);
+    codegen->append_inst(".type main, @function", ASMInstruction::Attribute);
 
     /* main 函数开始 */
     codegen->append_inst("main", ASMInstruction::Label); // main 函数标签

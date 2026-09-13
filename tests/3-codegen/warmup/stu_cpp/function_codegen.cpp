@@ -14,7 +14,7 @@ int main() {
     auto *codegen = new CodeGen(module);
 
     // 告诉汇编器将汇编放到代码段
-    codegen->append_inst(".text", ASMInstruction::Atrribute);
+    codegen->append_inst(".text", ASMInstruction::Attribute);
 
     translate_callee(codegen);
     translate_main(codegen);
@@ -29,8 +29,8 @@ void translate_callee(CodeGen *codegen) {
     std::unordered_map<std::string, int> offset_map;
 
     /* 声明 callee 函数 */
-    codegen->append_inst(".globl callee", ASMInstruction::Atrribute);
-    codegen->append_inst(".type callee, @function", ASMInstruction::Atrribute);
+    codegen->append_inst(".globl callee", ASMInstruction::Attribute);
+    codegen->append_inst(".type callee, @function", ASMInstruction::Attribute);
 
     /* callee 函数开始 */
     codegen->append_inst("callee", ASMInstruction::Label); // main 函数标签
@@ -117,8 +117,8 @@ void translate_main(CodeGen *codegen) {
     std::unordered_map<std::string, int> offset_map;
 
     /* 声明 main 函数 */
-    codegen->append_inst(".globl main", ASMInstruction::Atrribute);
-    codegen->append_inst(".type main, @function", ASMInstruction::Atrribute);
+    codegen->append_inst(".globl main", ASMInstruction::Attribute);
+    codegen->append_inst(".type main, @function", ASMInstruction::Attribute);
 
     /* main 函数开始 */
     codegen->append_inst("main", ASMInstruction::Label); // main 函数标签

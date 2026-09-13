@@ -525,21 +525,21 @@ void CodeGen::run() {
          * - 支持更旧版本的 GNU 汇编器, 因为 `.bss` 伪指令是应该相对较新的指令,
          *   GNU 汇编器在 2023 年 2 月的 2.37 版本才将其引入
          */
-        append_inst(".text", ASMInstruction::Atrribute);
+        append_inst(".text", ASMInstruction::Attribute);
         append_inst(".section", {".bss", "\"aw\"", "@nobits"},
-                    ASMInstruction::Atrribute);
+                    ASMInstruction::Attribute);
         for (auto &global : m->get_global_variable()) {
             auto size =
                 global.get_type()->get_pointer_element_type()->get_size();
             append_inst(".globl", {global.get_name()},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
             append_inst(".type", {global.get_name(), "@object"},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
             append_inst(".size", {global.get_name(), std::to_string(size)},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
             append_inst(global.get_name(), ASMInstruction::Label);
             append_inst(".space", {std::to_string(size)},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
         }
     }
 
@@ -552,9 +552,9 @@ void CodeGen::run() {
             context.func = &func;
 
             // 函数信息
-            append_inst(".globl", {func.get_name()}, ASMInstruction::Atrribute);
+            append_inst(".globl", {func.get_name()}, ASMInstruction::Attribute);
             append_inst(".type", {func.get_name(), "@function"},
-                        ASMInstruction::Atrribute);
+                        ASMInstruction::Attribute);
             append_inst(func.get_name(), ASMInstruction::Label);
 
             // 分配函数栈帧

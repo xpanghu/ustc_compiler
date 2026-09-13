@@ -4,7 +4,7 @@
 #include <string>
 
 struct ASMInstruction {
-    enum InstType { Instruction, Atrribute, Label, Comment } type;
+    enum InstType { Instruction, Attribute, Label, Comment } type;
     std::string content;
 
     explicit ASMInstruction(std::string s, InstType ty = Instruction)
@@ -13,7 +13,7 @@ struct ASMInstruction {
     std::string format() const {
         switch (type) {
         case ASMInstruction::Instruction:
-        case ASMInstruction::Atrribute:
+        case ASMInstruction::Attribute:
             return "\t" + content + "\n";
         case ASMInstruction::Label:
             return content + ":\n";
