@@ -1,7 +1,6 @@
 #include "Dominators.hpp"
 
 #include <fstream>
-#include <functional>
 #include <vector>
 
 #include "BasicBlock.hpp"
@@ -223,12 +222,6 @@ void Dominators::create_dom_tree_succ()
         // parent 直接支配 bb, 所以 bb 是 parent 在支配树上的后继
         dom_tree_succ_blocks_[parent].insert(bb);
     }
-
-    for (auto& [bb, parent] : idom_) {
-        if (parent == nullptr || parent == bb)
-            continue;
-        dom_tree_succ_blocks_[parent].insert(bb);
-    }
 }
 
 /**
@@ -248,18 +241,18 @@ void Dominators::create_dom_tree_succ()
 void Dominators::create_dom_dfs_order()
 {
     // 分析得到 f_ 中各个基本块的支配树上的dfs序L,R
+    // 泛型 lambda 自递归: 把自己作为第一个参数 self 传进来, 这样不需要先声明 std::function
     unsigned int order = 0;
-    std::function<void(BasicBlock*)> dfs = [&](BasicBlock* bb) {
+    auto dfs = [&](auto&& self, BasicBlock* bb) -> void {
         dom_tree_L_[bb] = ++order;
         dom_dfs_order_.push_back(bb);
         for (auto succ : dom_tree_succ_blocks_[bb]) {
-            dfs(succ);
+            self(self, succ);
         }
         dom_tree_R_[bb] = order;
     };
-    dfs(f_->get_entry_block());
-    dom_post_order_ =
-        std::vector(dom_dfs_order_.rbegin(), dom_dfs_order_.rend());
+    dfs(dfs, f_->get_entry_block());
+    dom_post_order_ = std::vector(dom_dfs_order_.rbegin(), dom_dfs_order_.rend());
 }
 
 /**

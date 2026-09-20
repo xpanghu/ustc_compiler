@@ -42,6 +42,6 @@ private:
     static bool clear_basic_blocks(Function* func);
     // 指令是否有副作用
     bool is_critical(Instruction* ins) const;
-    // 删除无用函数和全局变量
-    void sweep_globally() const;
+    // 删除无用函数和全局变量(内部迭代到不动点)
+    void sweep_globally();
 };

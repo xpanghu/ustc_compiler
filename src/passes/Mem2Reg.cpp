@@ -3,7 +3,6 @@
 #include "IRBuilder.hpp"
 #include "Value.hpp"
 
-
 // ptr 是否是非数组 alloca 变量(是则转换为 AllocaInst)
 static AllocaInst* is_not_array_alloca(Value* ptr)
 {
@@ -25,7 +24,8 @@ static AllocaInst* is_not_array_alloca(Value* ptr)
  *
  * 注意：函数执行后，冗余的局部变量分配指令将由后续的死代码删除Pass处理
  */
-void Mem2Reg::run() {
+void Mem2Reg::run()
+{
     // 以函数为单元遍历实现 Mem2Reg 算法
     for (auto f : m_->get_functions()) {
         if (f->is_declaration())
@@ -36,7 +36,7 @@ void Mem2Reg::run() {
         // 建立支配树
         dominators_->run();
         allocas_.clear();
-        var_val_stack.clear();
+        var_val_stack_.clear();
         phi_to_alloca_.clear();
         bb_to_phi_.clear();
         if (!func_->get_basic_blocks().empty()) {
@@ -44,7 +44,9 @@ void Mem2Reg::run() {
             generate_phi();
             // 确保每个局部变量的栈都有初始值
             for (auto var : allocas_)
-                var_val_stack[var].emplace_back(var->get_alloca_type()->is_float_type() ? static_cast<Value*>(ConstantFP::get(0, m_)) : static_cast<Value*>(ConstantInt::get(0, m_)));
+                var_val_stack_[var].emplace_back(var->get_alloca_type()->is_float_type() ?
+                                                    static_cast<Value*>(ConstantFP::get(0, m_)) :
+                                                    static_cast<Value*>(ConstantInt::get(0, m_)));
             // 对应伪代码中重命名阶段
             rename(func_->get_entry_block());
         }
@@ -69,13 +71,14 @@ void Mem2Reg::run() {
  *
  * phi指令的插入遵循最小化原则，只在必要的位置插入phi节点
  */
-void Mem2Reg::generate_phi() {
+void Mem2Reg::generate_phi()
+{
     // 步骤一：找到活跃在多个 block 的名字集合，以及它们所属的 bb 块
 
     // global_live_var_name 包括函数中所有非数组 alloca 变量
-    std::set<AllocaInst *> not_array_allocas;
+    std::set<AllocaInst*> not_array_allocas;
     // 每个 alloca 在什么基本块被 store (可能重复)
-    std::map<AllocaInst*, std::list<BasicBlock *>> allocas_stored_bbs;
+    std::map<AllocaInst*, std::list<BasicBlock*>> allocas_stored_bbs;
     for (auto bb : func_->get_basic_blocks()) {
         for (auto instr : bb->get_instructions()) {
             if (instr->is_store()) {
@@ -83,8 +86,7 @@ void Mem2Reg::generate_phi() {
                 // a is r_val, b is l_val
                 auto l_val = dynamic_cast<StoreInst*>(instr)->get_ptr();
                 if (auto lalloca = is_not_array_alloca(l_val)) {
-                    if (!not_array_allocas.count(lalloca))
-                    {
+                    if (!not_array_allocas.count(lalloca)) {
                         not_array_allocas.insert(lalloca);
                         allocas_.emplace_back(lalloca);
                     }
@@ -97,9 +99,9 @@ void Mem2Reg::generate_phi() {
     // 步骤二：从支配树获取支配边界信息，并在对应位置插入 phi 指令
 
     // 基本块是否已经有了对特定 alloca 变量的 phi
-    std::set<std::pair<BasicBlock *, AllocaInst *>> bb_has_var_phi;
+    std::set<std::pair<BasicBlock*, AllocaInst*>> bb_has_var_phi;
     for (auto var : not_array_allocas) {
-        std::vector<BasicBlock *> work_list;
+        std::vector<BasicBlock*> work_list;
         std::set<BasicBlock*> already_handled;
         work_list.assign(allocas_stored_bbs[var].begin(), allocas_stored_bbs[var].end());
         for (unsigned i = 0; i < work_list.size(); i++) {
@@ -108,9 +110,8 @@ void Mem2Reg::generate_phi() {
             if (already_handled.count(bb)) continue;
             already_handled.emplace(bb);
             for (auto bb_dominance_frontier_bb :
-                dominators_->get_dominance_frontier(bb)) {
-                if (bb_has_var_phi.find({bb_dominance_frontier_bb, var}) ==
-                    bb_has_var_phi.end()) {
+                 dominators_->get_dominance_frontier(bb)) {
+                if (bb_has_var_phi.find({bb_dominance_frontier_bb, var}) == bb_has_var_phi.end()) {
                     // generate phi for bb_dominance_frontier_bb & add
                     // bb_dominance_frontier_bb to work list
                     auto phi = PhiInst::create_phi(
@@ -126,10 +127,11 @@ void Mem2Reg::generate_phi() {
     }
 }
 
-void Mem2Reg::rename(BasicBlock *bb) {
+void Mem2Reg::rename(BasicBlock* bb)
+{
     // 可能用到的数据结构
     // list<AllocaInst*> allocas_ 所有 Mem2Reg 需要消除的局部变量，用于遍历
-    // map<AllocaInst*,vector<Value *>> var_val_stack 每个局部变量的存储值栈，还未进行任何操作时已经存进去了 0，不会为空
+    // map<AllocaInst*,vector<Value *>> var_val_stack_ 每个局部变量的存储值栈，还未进行任何操作时已经存进去了 0，不会为空
     // map<PhiInst *, AllocaInst*> phi_to_alloca_; Phi 对应的局部变量
     // map<BasicBlock*, list<PhiInst*>> bb_to_phi_; 在某个基本块的 Phi
     // 可能用到的函数
@@ -138,15 +140,60 @@ void Mem2Reg::rename(BasicBlock *bb) {
     // StoreInst / LoadInst get_ptr 这些 Inst 所操作的变量
     // is_not_array_alloca(Value* ptr) 一个变量是不是 Mem2Reg 所关心的非数组局部变量
 
-    // TODO
-    // 步骤一：对每个 alloca 非数组变量(局部变量), 在其存储值栈存入其当前的最新值(也就是目前的栈顶值)
-    // 步骤二：遍历基本块所有指令，执行操作并记录需要删除的 load/store/alloca 指令(注意: 并非所有 load/store/alloca 都是 Mem2Reg 需要处理的)
-    // - 步骤三: 将 store 指令存储的值，作为其对应局部变量的最新值(更新栈顶)
-    // - 步骤四: 将 phi 指令作为其对应局部变量的最新值(更新栈顶)
-    // - 步骤五: 将 load 指令的所有使用替换为其读取的局部变量的最新值
-    // 步骤六：为所有后继块的 phi 添加参数
-    // 步骤七：对 bb 在支配树上的所有后继节点，递归执行 rename 操作
-    // 步骤八：pop 出所有局部变量的最新值
-    // 步骤九：删除需要删除的冗余指令
-}
+    // 本块内压入过值的变量(同一个变量可能压多次), 离开本块时要按相反顺序弹回去
+    std::vector<AllocaInst*> pushed;
+    // 本块中收集到的冗余 load/store
+    std::set<Instruction*> wait_delete;
 
+    // 步骤四: 本块的 phi 就是它对应局部变量在本块入口处的最新值
+    for (auto phi : bb_to_phi_[bb]) {
+        auto var = phi_to_alloca_[phi];
+        var_val_stack_[var].emplace_back(phi);
+        pushed.emplace_back(var);
+    }
+
+    // 步骤二/三/五: 顺序扫描本块指令.
+    // 顺序扫描很关键: SSA 下一条指令的操作数一定定义在它之前, 所以扫到某条指令时,
+    // 它的操作数都已经被处理过了.
+    for (auto instr : bb->get_instructions()) {
+        if (instr->is_store()) {
+            auto store = dynamic_cast<StoreInst*>(instr);
+            if (auto var = is_not_array_alloca(store->get_ptr())) {
+                // 步骤三: store 进去的值成为该变量在此处的最新值
+                var_val_stack_[var].emplace_back(store->get_val());
+                pushed.emplace_back(var);
+                wait_delete.emplace(instr);
+            }
+        } else if (instr->is_load()) {
+            auto load = dynamic_cast<LoadInst*>(instr);
+            if (auto var = is_not_array_alloca(load->get_ptr())) {
+                // 步骤五: 把 load 的所有使用都替换成当前的最新值
+                load->replace_all_use_with(var_val_stack_[var].back());
+                wait_delete.emplace(instr);
+            }
+        }
+    }
+
+    // 步骤六: 本块是这些后继块的前驱之一, 给它们的 phi 补上 (当前值, 本块) 这一对
+    for (auto succ : bb->get_succ_basic_blocks()) {
+        for (auto phi : bb_to_phi_[succ]) {
+            auto var = phi_to_alloca_[phi];
+            phi->add_phi_pair_operand(var_val_stack_[var].back(), bb);
+        }
+    }
+
+    // 步骤七: 沿支配树递归处理所有被本块直接支配的块.
+    // 支配树的父子关系保证: 处理某个块时, 支配它的块都已经处理完了
+    for (auto dom_succ : dominators_->get_dom_tree_succ_blocks(bb)) {
+        rename(dom_succ);
+    }
+
+    // 步骤八: 弹出本块压入的所有值, 恢复到进入本块之前的栈状态
+    for (auto it = pushed.rbegin(); it != pushed.rend(); ++it) {
+        var_val_stack_[*it].pop_back();
+    }
+
+    // 步骤九: 删除本块中冗余的 load/store.
+    // alloca 不在这里删: 它的使用已经被全部替换掉, 留着交给后面的 DeadCode 清理
+    bb->erase_instrs(wait_delete);
+}

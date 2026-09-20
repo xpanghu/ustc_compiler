@@ -21,6 +21,9 @@ extern int pos_start;
 // Global syntax tree
 syntax_tree *gt;
 
+// 当前输入文件路径, 只用于错误信息
+static const char *input_file_path = NULL;
+
 // Error reporting
 void yyerror(const char *s);
 
@@ -208,9 +211,22 @@ arg-list 	: 	arg-list COMMA expression {$$ = node( "arg-list", 3, $1, $2, $3);}
 /// The error reporting function.
 void yyerror(const char * s)
 {
-    // TO STUDENTS: This is just an example.
-    // You can customize it as you like.
-    fprintf(stderr, "error at line %d column %d: %s\n", lines, pos_start, s);
+    // 只报第一处错误。文法里没有 error 恢复产生式, bison 遇到语法错误即中止,
+    // 所以正常情况下这里只会被调用一次, 这个标志只是保险。
+    static int reported = 0;
+    if (reported)
+        return;
+    reported = 1;
+
+    // 形如:  test.cminus:1:8: syntax error: unexpected ')'
+    // 位置用 file:line:col 格式, 编辑器可以直接点击跳转
+    fprintf(stderr, "%s:%d:%d: %s",
+            input_file_path ? input_file_path : "<stdin>", lines, pos_start, s);
+
+    // 指出具体是哪个词法单元让语法分析失败的, 这通常比 "syntax error" 本身更有用
+    if (yytext != NULL && yytext[0] != '\0')
+        fprintf(stderr, ": unexpected '%s'", yytext);
+    fprintf(stderr, "\n");
 }
 
 /// Parse input from file `input_path`, and prints the parsing results
@@ -228,10 +244,17 @@ syntax_tree *parse(const char *input_path)
         yyin = stdin;
     }
 
+    input_file_path = input_path;
     lines = pos_start = pos_end = 1;
     gt = new_syntax_tree();
     yyrestart(yyin);
-    yyparse();
+    if (yyparse() != 0) {
+        // 语法分析失败: 这棵树是残缺的 (root 不会被归约, 仍是 NULL), 丢弃并返回空指针,
+        // 由调用方决定如何退出 —— 关键是不能把半成品交给后面的 AST 构造
+        del_syntax_tree(gt);
+        gt = NULL;
+        return NULL;
+    }
     return gt;
 }
 

@@ -22,8 +22,18 @@ void DeadCode::run()
             changed |= sweep(func);
         }
     } while (changed);
+
+    // 删无用函数/全局放在最后, 而且必须放在 func_info 释放【之后】:
+    //   FuncInfo 的 loads/stores 里存着 GlobalVariable* / Argument*, 全局变量一旦被删,
+    //   这些指针就成了悬垂指针. 放在这里可以保证"删全局时已经不存在任何持有它们的分析对象".
+    // 它也不能放进上面的 for 里 —— 遍历 m_->get_functions() 时删元素会让迭代器失效.
     delete func_info;
     func_info = nullptr;
+    sweep_globally();
+
+    // 上一句删函数时把其中的指令一并删了, 这两个容器不能留着悬垂的 Instruction*
+    marked.clear();
+    work_list.clear();
 }
 
 static void remove_phi_operand_if_in(PhiInst* inst, const std::unordered_set<BasicBlock*>& in)
@@ -74,7 +84,7 @@ bool DeadCode::clear_basic_blocks(Function* func)
         if (erase_set.count(i)) continue;
         for (auto j : i->get_instructions()) {
             auto phi = dynamic_cast<PhiInst*>(j);
-            if (phi == nullptr) break; // 假定所有 phi 都在基本块指令的最前面，见 https://ustc-compiler-2025.github.io/homepage/exp_platform_intro/TA/#%E4%BD%BF%E7%94%A8%E4%B8%A4%E6%AE%B5%E5%8C%96-instruction-list
+            if (phi == nullptr) break; 
             remove_phi_operand_if_in(phi, erase_set);
         }
     }
@@ -134,6 +144,13 @@ bool DeadCode::sweep(Function* func)
         }
         bb->get_instructions().remove_if([&wait_del](Instruction* i) -> bool { return wait_del.count(i); });
         if (!wait_del.empty()) rm = true;
+        // remove_if 只是把指针从链表里摘掉, 并不会析构指令. 不 delete 会留下两个后果:
+        //   1) 内存泄漏;
+        //   2) 指令的 use_list 永远不清理 —— 于是"某函数/全局是否还有使用者"这类判断会失真,
+        //      sweep_globally 就永远删不掉已经没人调用的函数.
+        // 删除是安全的: 被标记的指令不可能用到未标记的指令(标记阶段沿操作数反向传播保证的);
+        // 而 Value::~Value 会把所有使用者的操作数槽置空, 所以先后顺序也不影响.
+        for (auto inst : wait_del) delete inst;
         wait_del.clear();
     }
     return rm;
@@ -156,25 +173,36 @@ bool DeadCode::is_critical(Instruction* ins) const
     return false;
 }
 
-void DeadCode::sweep_globally() const
+void DeadCode::sweep_globally()
 {
-    std::vector<Function*> unused_funcs;
-    std::vector<GlobalVariable*> unused_globals;
-    for (auto f_r : m_->get_functions()) {
-        if (f_r->get_use_list().empty() and f_r->get_name() != "main")
-            unused_funcs.push_back(f_r);
-    }
-    for (auto glob_var_r : m_->get_global_variable()) {
-        if (glob_var_r->get_use_list().empty())
-            unused_globals.push_back(glob_var_r);
-    }
-    // changed |= unused_funcs.size() or unused_globals.size();
-    for (auto func : unused_funcs) {
-        m_->get_functions().remove(func);
-        delete func;
-    }
-    for (auto glob : unused_globals) {
-        m_->get_global_variable().remove(glob);
-        delete glob;
-    }
+    // 内部迭代到不动点: 删掉 f 之后, "只被 f 使用"的 g 和全局变量会变成新的无用项.
+    //
+    // 这也是它不必参与 run() 外层不动点的原因 —— 它删的都是"没有使用者"的函数/全局,
+    // 因此不会让任何【指令】变成死代码, 与指令级的 mark/sweep 互不影响.
+    // 正是这一点让它可以被放到 func_info 释放之后调用(见 run()), 从而不存在
+    // "分析结果里还存着被删掉的 GlobalVariable*" 这类悬垂问题.
+    bool changed;
+    do {
+        changed = false;
+        std::vector<Function*> unused_funcs;
+        std::vector<GlobalVariable*> unused_globals;
+        for (auto f_r : m_->get_functions()) {
+            if (f_r->get_use_list().empty() and f_r->get_name() != "main")
+                unused_funcs.push_back(f_r);
+        }
+        for (auto glob_var_r : m_->get_global_variable()) {
+            if (glob_var_r->get_use_list().empty())
+                unused_globals.push_back(glob_var_r);
+        }
+        // 先收集再统一删: 删除会改动链表, 不能边遍历边删
+        for (auto func : unused_funcs) {
+            m_->get_functions().remove(func);
+            delete func;
+        }
+        for (auto glob : unused_globals) {
+            m_->get_global_variable().remove(glob);
+            delete glob;
+        }
+        changed = !unused_funcs.empty() || !unused_globals.empty();
+    } while (changed);
 }

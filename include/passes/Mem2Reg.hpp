@@ -15,7 +15,7 @@ class Mem2Reg : public TransformPass {
     // 所有需要处理的变量
     std::list<AllocaInst*> allocas_;
     // 变量定值栈
-    std::map<AllocaInst*, std::vector<Value *>> var_val_stack;
+    std::map<AllocaInst*, std::vector<Value *>> var_val_stack_;
     // Phi 对应的局部变量
     std::map<PhiInst *, AllocaInst*> phi_to_alloca_;
     // 在某个基本块的 Phi

@@ -35,7 +35,11 @@ void del_syntax_tree_node(syntax_tree_node *node, int recursive) {
 }
 
 syntax_tree *new_syntax_tree() {
-    return (syntax_tree *)malloc(sizeof(syntax_tree));
+    syntax_tree *tree = (syntax_tree *)malloc(sizeof(syntax_tree));
+    // root 必须显式置空: 解析失败时 program 产生式不会归约, root 不会被赋值,
+    // 留成 malloc 出来的野指针会让后面的 del_syntax_tree / AST 构造读到垃圾
+    tree->root = NULL;
+    return tree;
 }
 
 void del_syntax_tree(syntax_tree *tree) {

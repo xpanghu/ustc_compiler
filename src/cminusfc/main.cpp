@@ -50,6 +50,13 @@ int main(int argc, char** argv) {
     Config config(argc, argv);
 
     auto syntax_tree = parse(config.input_file.c_str());
+    if (syntax_tree == nullptr) {
+        // 语法错误的具体位置已经由 yyerror 打到 stderr 了, 这里只补一句收束并干净退出。
+        // 注意必须在这里拦住: AST 的构造函数拿到 nullptr 会 std::abort(), 消息还会误导成
+        // "empty input tree!"
+        std::cerr << "[ERR] syntax analysis failed, no output generated.\n";
+        return 1;
+    }
     auto ast = AST(syntax_tree);
 
     if (config.emitast) { // if emit ast (lab1), print ast and return
