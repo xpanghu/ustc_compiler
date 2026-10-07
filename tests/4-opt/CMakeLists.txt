@@ -13,3 +13,6 @@ install(
     TARGETS eval_lab4
     RUNTIME DESTINATION bin
 )
+
+add_executable(test_licm licm_regression.cpp)
+target_link_libraries(test_licm PRIVATE passes IR_lib common)

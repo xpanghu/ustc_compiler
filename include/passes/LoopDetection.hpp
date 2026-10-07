@@ -30,13 +30,13 @@ class Loop {
     }
     ~Loop() = default;
     void add_block(BasicBlock *bb) { blocks_.push_back(bb); }
+    const std::vector<BasicBlock*>& get_blocks() { return blocks_; }
     BasicBlock *get_header() const { return header_; }
     BasicBlock *get_preheader() const { return preheader_; }
+    void set_preheader(BasicBlock *bb) { preheader_ = bb; }
     Loop* get_parent() const { return parent_; }
     void set_parent(Loop* parent) { parent_ = parent; }
-    void set_preheader(BasicBlock *bb) { preheader_ = bb; }
     void add_sub_loop(Loop* loop) { sub_loops_.push_back(loop); }
-    const std::vector<BasicBlock*>& get_blocks() { return blocks_; }
     const std::vector<Loop*>& get_sub_loops() { return sub_loops_; }
     const std::unordered_set<BasicBlock *>& get_latches() { return latches_; }
     void add_latch(BasicBlock *bb) { latches_.insert(bb); }

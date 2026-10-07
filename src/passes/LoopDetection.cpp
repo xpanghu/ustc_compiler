@@ -11,21 +11,22 @@ LoopDetection::~LoopDetection()
     for (auto loop : loops_) delete loop;
 }
 
- /**
-  * @brief 对单个函数执行循环检测
-  *
-  * 该函数通过以下步骤检测循环：
-  * 1. 创建支配树分析实例
-  * 2. 运行支配树分析
-  * 3. 按支配树后序遍历所有基本块
-  * 4. 对每个块，检查其前驱是否存在回边
-  * 5. 如果存在回边，创建新的循环并：
-  *    - 设置循环header
-  *    - 添加latch节点
-  *    - 发现循环体和子循环
-  * 6. 最后打印检测结果
-  */
-void LoopDetection::run() {
+/**
+ * @brief 对单个函数执行循环检测
+ *
+ * 该函数通过以下步骤检测循环：
+ * 1. 创建支配树分析实例
+ * 2. 运行支配树分析
+ * 3. 按支配树后序遍历所有基本块
+ * 4. 对每个块，检查其前驱是否存在回边
+ * 5. 如果存在回边，创建新的循环并：
+ *    - 设置循环header
+ *    - 添加latch节点
+ *    - 发现循环体和子循环
+ * 6. 最后打印检测结果
+ */
+void LoopDetection::run()
+{
     dominators_ = new Dominators(f_);
     dominators_->run();
     for (auto bb : dominators_->get_dom_post_order()) {
@@ -57,8 +58,10 @@ void LoopDetection::run() {
 std::string Loop::safe_print() const
 {
     std::string ret;
-    if (header_ == nullptr) ret += "b<null>";
-    else ret += header_->get_name();
+    if (header_ == nullptr)
+        ret += "b<null>";
+    else
+        ret += header_->get_name();
     ret += " ";
     ret += std::to_string(blocks_.size());
     ret += "b ";
@@ -75,7 +78,8 @@ std::string Loop::safe_print() const
  * @param latches 循环的回边终点(latch)集合
  * @param loop 当前正在处理的循环对象
  */
-void LoopDetection::discover_loop_and_sub_loops(BasicBlock *bb, std::set<BasicBlock*>&latches, Loop* loop) {
+void LoopDetection::discover_loop_and_sub_loops(BasicBlock* bb, std::set<BasicBlock*>& latches, Loop* loop)
+{
     // TODO List:
     // 1. 初始化工作表，将所有latch块加入
     // 2. 实现主循环逻辑
@@ -83,8 +87,8 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock *bb, std::set<BasicBl
     // 4. 处理已属于其他循环的节点
     // 5. 建立正确的循环嵌套关系
 
-    std::vector<BasicBlock*> work_list = {latches.begin(), latches.end()}; // 初始化工作表
-    std::unordered_set<BasicBlock*> already_in_work_list = { latches.begin(), latches.end() }; // 已经在工作表，防止重复加入
+    std::vector<BasicBlock*> work_list = {latches.begin(), latches.end()};                   // 初始化工作表
+    std::unordered_set<BasicBlock*> already_in_work_list = {latches.begin(), latches.end()}; // 已经在工作表，防止重复加入
 
     while (!work_list.empty()) { // 当工作表非空时继续处理
         auto bb2 = work_list.back();
@@ -98,8 +102,14 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock *bb, std::set<BasicBl
              * 2. 更新bb_to_loop_映射
              * 3. 将bb的所有前驱加入工作表
              */
-        throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
-        
+            loop->add_block(bb2);
+            bb_to_loop_[bb2] = loop;
+            for (auto pred : bb2->get_pre_basic_blocks()) {
+                if (already_in_work_list.find(pred) == already_in_work_list.end()) {
+                    work_list.push_back(pred);
+                    already_in_work_list.insert(pred);
+                }
+            }
         }
         // TODO-2: 处理已属于其他循环的节点
         if (bb_to_loop_[bb2] != loop) {
@@ -113,13 +123,29 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock *bb, std::set<BasicBl
              * 5. 将子循环的所有基本块加入到父循环中
              * 6. 将子循环header的前驱加入工作表
              */
+            auto sub_loop = bb_to_loop_[bb2];
+            while (sub_loop->get_parent() != nullptr)
+                sub_loop = sub_loop->get_parent();
+            if (sub_loop == loop)
+                continue;
 
-        throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
+            sub_loop->set_parent(loop);
+            loop->add_sub_loop(sub_loop);
+            for (auto bb : sub_loop->get_blocks()) {
+                loop->add_block(bb);
+                bb_to_loop_[bb] = loop;
+            }
 
+            auto header = sub_loop->get_header();
+            for (auto pred : header->get_pre_basic_blocks()) {
+                if (already_in_work_list.find(pred) == already_in_work_list.end()) {
+                    work_list.push_back(pred);
+                    already_in_work_list.insert(pred);
+                }
+            }
         }
     }
 }
-
 
 /**
  * @brief 打印循环检测的结果
@@ -129,10 +155,11 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock *bb, std::set<BasicBl
  * 2. 循环包含的所有基本块
  * 3. 循环的所有子循环
  */
-void LoopDetection::print() const {
+void LoopDetection::print() const
+{
     f_->get_parent()->set_print_name();
     std::cerr << "Loop Detection Result:\n";
-    for (auto &loop : loops_) {
+    for (auto& loop : loops_) {
         std::cerr << "Loop header: " << loop->get_header()->get_name()
                   << '\n';
         std::cerr << "Loop blocks: ";
@@ -141,7 +168,7 @@ void LoopDetection::print() const {
         }
         std::cerr << '\n';
         std::cerr << "Sub loops: ";
-        for (auto &sub_loop : loop->get_sub_loops()) {
+        for (auto& sub_loop : loop->get_sub_loops()) {
             std::cerr << sub_loop->get_header()->get_name() << " ";
         }
         std::cerr << '\n';

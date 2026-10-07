@@ -1,6 +1,7 @@
 #include "LICM.hpp"
 
-#include <memory>
+#include <cstdint>
+#include <unordered_map>
 #include <vector>
 
 #include "BasicBlock.hpp"
@@ -48,7 +49,7 @@ void LoopInvariantCodeMotion::traverse_loop(Loop* loop)
     }
 }
 
-// TODO: 收集并返回循环 store 过的变量
+// 收集并返回循环 store 过的变量
 // 例如
 // %a = alloca ...
 // %b = getelementptr %a ...
@@ -58,13 +59,31 @@ std::unordered_set<Value*> LoopInvariantCodeMotion::collect_loop_store_vars(Loop
 {
     // 可能用到
     // FuncInfo::store_ptr, FuncInfo::get_stores
-    throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
+    std::unordered_set<Value*> collect;
+    for (auto bb : loop->get_blocks()) {
+        for (auto inst : bb->get_instructions()) {
+            if (inst->is_store())
+                collect.insert(func_info_->store_ptr(dynamic_cast<StoreInst*>(inst)));
+            if (inst->is_call()) {
+                for (auto v : func_info_->get_stores(dynamic_cast<CallInst*>(inst))) {
+                    collect.insert(v);
+                }
+            }
+        }
+    }
+    return collect;
 }
 
-// TODO: 收集并返回循环中的所有指令
+// 收集并返回循环中的所有指令
 std::vector<Instruction*> LoopInvariantCodeMotion::collect_insts(Loop* loop)
 {
-    throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
+    std::vector<Instruction*> collect;
+    for (auto bb : loop->get_blocks()) {
+        for (auto inst : bb->get_instructions()) {
+            collect.push_back(inst);
+        }
+    }
+    return collect;
 }
 
 enum InstructionType: std::uint8_t
@@ -83,91 +102,126 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop)
     std::unordered_set<Value*> loop_stores_var = collect_loop_store_vars(loop);
     // 循环中的所有指令
     std::vector<Instruction*> instructions = collect_insts(loop);
-    int insts_count = static_cast<int>(instructions.size());
     // Value* 在 map 内说明它是循环内的指令，InstructionType 指示它是循环变量（每次循环都会变）/ 循环不变量 还是 不知道
     std::unordered_map<Value*, InstructionType> inst_type;
     for (auto i : instructions) inst_type[i] = UNKNOWN;
 
-    // 遍历后是不是还有指令不知道 InstructionType
-    bool have_inst_can_not_decide;
-    // 是否存在 invariant
-    bool have_invariant = false;
+    // 不同指针形参可能指向同一数组，也可能指向全局数组；局部 alloca 则是独立对象。
+    auto may_be_modified = [&](Value* root)
+    {
+        for (auto stored : loop_stores_var)
+        {
+            if (root == stored) return true;
+            if ((dynamic_cast<Argument*>(root) != nullptr && dynamic_cast<AllocaInst*>(stored) == nullptr)
+                || (dynamic_cast<Argument*>(stored) != nullptr && dynamic_cast<GlobalVariable*>(root) != nullptr))
+                return true;
+        }
+        return false;
+    };
+
+    // 按被判定为不变量的顺序记录，保证定义先于依赖它的指令外提。
+    std::vector<Instruction*> invariants;
+    bool changed;
     do
     {
-        have_inst_can_not_decide = false;
-        for (int i = 0; i < insts_count; i++)
+        changed = false;
+        for (auto inst : instructions)
         {
-            Instruction* inst = instructions[i];
-            InstructionType type = inst_type[inst];
-            if (type != UNKNOWN) continue;
-            // 可能有用的函数
-            // FuncInfo::load_ptr, FuncInfo::get_stores, FuncInfo::use_io
+            if (inst_type[inst] != UNKNOWN) continue;
+            InstructionType type = INVARIANT;
+            if (inst->is_store() || inst->is_ret() || inst->is_br() ||
+                inst->is_phi() || inst->is_alloca())
+            {
+                type = VARIANT;
+            }
+            else if (inst->is_load())
+            {
+                if (may_be_modified(func_info_->load_ptr(static_cast<LoadInst*>(inst))))
+                    type = VARIANT;
+            }
+            else if (inst->is_call())
+            {
+                auto call = dynamic_cast<CallInst*>(inst);
+                auto callee = call->get_operand(0)->as<Function>();
+                if (func_info_->use_io(callee) || !func_info_->get_stores(call).empty())
+                    type = VARIANT;
+                // 只读的非纯函数也可外提，但它读取的内存必须在整个循环中不变。
+                for (auto loaded : func_info_->get_loads(call))
+                    if (may_be_modified(loaded)) type = VARIANT;
+            }
 
-            // TODO: 识别循环不变式指令
-            // - 将 store、ret、br、phi 等指令与非纯函数调用标记为 VARIANT
-            // - 如果 load 指令加载的变量是循环 store 过的变量，标记为 VARIANT
-            // - 如果指令有 VARIANT 操作数，标记为 VARIANT
-            // - 如果指令所有操作数都是 INVARIANT (或者不在循环内)，标记为 INVARIANT, 设置 have_invariant
-            // - 否则设置 have_inst_can_not_decide
-
-            // TODO: 外提循环不变的非纯函数调用
-            // 注意: 你不应该外提使用了 io 的函数调用
-
-            throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
+            if (type != VARIANT)
+            {
+                for (auto operand : inst->get_operands())
+                {
+                    auto found = inst_type.find(operand);
+                    if (found == inst_type.end()) continue; // 循环外的值
+                    if (found->second == VARIANT)
+                    {
+                        type = VARIANT;
+                        break;
+                    }
+                    if (found->second == UNKNOWN) type = UNKNOWN;
+                }
+            }
+            if (type == UNKNOWN) continue;
+            inst_type[inst] = type;
+            changed = true;
+            if (type == INVARIANT) invariants.push_back(inst);
         }
     }
-    while (have_inst_can_not_decide);
+    while (changed);
 
-    if (!have_invariant) return;
+    if (invariants.empty()) return;
 
     auto header = loop->get_header();
+    std::unordered_set<BasicBlock*> blocks(loop->get_blocks().begin(), loop->get_blocks().end());
+    std::vector<BasicBlock*> outside_preds;
+    for (auto pred : header->get_pre_basic_blocks())
+        if (!blocks.count(pred)) outside_preds.push_back(pred);
+    if (outside_preds.empty()) return;
 
-    if (header->get_pre_basic_blocks().size() > 1 || header->get_pre_basic_blocks().front()->get_succ_basic_blocks().size() > 1)
+    if (outside_preds.size() > 1 || outside_preds.front()->get_succ_basic_blocks().size() > 1)
     {
         // 插入 preheader
         auto bb = BasicBlock::create(m_, "", loop->get_header()->get_parent());
         loop->set_preheader(bb);
 
-        for (auto phi : loop->get_header()->get_instructions())
+        for (auto inst : header->get_instructions())
         {
-            if (phi->get_instr_type() != Instruction::phi) break;
-            // 可能有用的函数
-            // PhiInst::create_phi
-
-            // TODO: 分裂 phi 指令
-            throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
+            if (!inst->is_phi()) break;
+            auto phi = static_cast<PhiInst*>(inst);
+            std::vector<Value*> values;
+            std::vector<BasicBlock*> predecessors;
+            auto pairs = phi->get_phi_pairs();
+            for (auto pair : pairs)
+            {
+                if (blocks.count(pair.second)) continue;
+                values.push_back(pair.first);
+                predecessors.push_back(pair.second);
+            }
+            // 只有一条入口边时直接转接；多条入口边时在 preheader 合并。
+            Value* incoming = values.front();
+            if (values.size() > 1)
+                incoming = PhiInst::create_phi(phi->get_type(), bb, values, predecessors);
+            phi->remove_all_operands();
+            for (auto pair : pairs)
+                if (blocks.count(pair.second)) phi->add_phi_pair_operand(pair.first, pair.second);
+            phi->add_phi_pair_operand(incoming, bb);
         }
 
-        // 可能有用的函数
-        // BranchInst::replace_all_bb_match
-
-        // TODO: 维护 bb, header, 与 header 前驱块的基本块关系
-        throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
-
+        // 仅转接循环外的入口边，回边仍然直接跳到 header。
+        for (auto pred : outside_preds)
+            static_cast<BranchInst*>(pred->get_terminator())->replace_all_bb_match(header, bb);
         BranchInst::create_br(header, bb);
-
-        // 若你想维护 LoopDetection 在 LICM 后保持正确
-        // auto loop2 = loop->get_parent();
-        // while (loop2 != nullptr)
-        // {
-        //      loop2->add_block(bb);
-        //     loop2 = loop2->get_parent();
-        // }
     }
-    else loop->set_preheader(header->get_pre_basic_blocks().front());
+    else loop->set_preheader(outside_preds.front());
 
-    // insert preheader
     auto preheader = loop->get_preheader();
-
-    auto terminator = preheader->get_instructions().back();
-    preheader->get_instructions().pop_back();
-
-    // 可以使用 Function::check_for_block_relation_error 检查基本块间的关系是否正确维护
-
-    // TODO: 外提循环不变指令
-    throw std::runtime_error("Lab4: 你有一个TODO需要完成！");
-
-    preheader->add_instruction(terminator);
-
-    std::cerr << "licm done\n";
+    for (auto inst : invariants)
+    {
+        inst->get_parent()->remove_instr(inst); // 移动而非删除，保留 use-def 关系
+        inst->set_parent(preheader);
+        preheader->add_instr_before_terminator(inst);
+    }
 }
