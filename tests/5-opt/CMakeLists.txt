@@ -1,0 +1,2 @@
+add_executable(test_lab5_scaffold scaffold_regression.cpp)
+target_link_libraries(test_lab5_scaffold PRIVATE passes IR_lib common)

@@ -9,6 +9,8 @@
 #include "Mem2Reg.hpp"
 #include "LoopDetection.hpp"
 #include "LICM.hpp"
+#include "ConstPropagation.hpp"
+#include "GVN.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -29,6 +31,9 @@ struct Config {
     // optization conifg
     bool mem2reg{ false };
     bool licm{ false };
+    bool const_prop{ false };
+    bool gvn{ false };
+    bool dump_json{ false };
 
     Config(int argc, char** argv) : argc(argc), argv(argv) {
         parse_cmd_line();
@@ -69,11 +74,33 @@ int main(int argc, char** argv) {
         ast.run_visitor(builder);
         m = builder.getModule();
 
+        // TODO(Lab5): remove this preflight when GVN's algorithm is complete.
+        // The scaffold rejects execution before any pass/output is created;
+        // PassManager currently owns raw pointers and is not exception-safe.
+        if (config.gvn) {
+            try {
+                GVN preflight(m, config.dump_json);
+                preflight.run();
+            } catch (const std::runtime_error &error) {
+                std::cerr << "[ERR] " << error.what() << '\n';
+                delete m;
+                return 1;
+            }
+        }
+
         PassManager PM(m);
         // optimization 
         if (config.mem2reg) {
             PM.add_pass<DeadCode>(true);
             PM.add_pass<Mem2Reg>();
+            PM.add_pass<DeadCode>(false);
+        }
+        if (config.const_prop) {
+            PM.add_pass<ConstPropagation>();
+            PM.add_pass<DeadCode>(false);
+        }
+        if (config.gvn) {
+            PM.add_pass<GVN>(config.dump_json);
             PM.add_pass<DeadCode>(false);
         }
         if (config.licm) {
@@ -137,6 +164,15 @@ void Config::parse_cmd_line() {
         else if (argv[i] == "-licm"s) {
             licm = true;
         }
+        else if (argv[i] == "-const-prop"s) {
+            const_prop = true;
+        }
+        else if (argv[i] == "-gvn"s) {
+            gvn = true;
+        }
+        else if (argv[i] == "-dump-json"s) {
+            dump_json = true;
+        }
         else {
             if (input_file.empty()) {
                 input_file = argv[i];
@@ -166,6 +202,15 @@ void Config::check() {
     if (licm and not mem2reg) {
         print_err("licm must be used with mem2reg");
     }
+    if (gvn and not mem2reg) {
+        print_err("gvn must be used with mem2reg");
+    }
+    if (dump_json and not gvn) {
+        print_err("dump-json must be used with gvn");
+    }
+    if (emitast and (const_prop or gvn or dump_json)) {
+        print_err("lab5 optimization options cannot be used with emit-ast");
+    }
     if (output_file.empty()) {
         output_file = input_file.stem();
     }
@@ -179,9 +224,9 @@ void Config::check() {
 
 void Config::print_help() const {
     std::cout << "Usage: " << exe_name
-        << " [-h|--help] [-o <target-file>] [-emit-llvm] [-S] [-dump-json]"
-        "[-mem2reg] [-licm]"
-        "<input-file>"
+        << " [-h|--help] [-o <target-file>] [-emit-llvm|-S|-emit-ast]"
+        " [-mem2reg] [-const-prop] [-gvn] [-dump-json] [-licm]"
+        " <input-file>"
         << std::endl;
     exit(0);
 }
