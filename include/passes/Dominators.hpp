@@ -87,9 +87,9 @@ private:
     std::map<BasicBlock*, std::set<BasicBlock*>> dom_tree_succ_blocks_{}; // 支配树中的后继节点
 
     // 支配树上的dfs序L,R
-    std::map<BasicBlock*, unsigned int> dom_tree_L_;
-    std::map<BasicBlock*, unsigned int> dom_tree_R_;
+    std::map<BasicBlock*, unsigned int> dom_tree_L_; // 记录DFS首次访问该节点的时间戳
+    std::map<BasicBlock*, unsigned int> dom_tree_R_; // 记录DFS完成访问该节点子树的时间戳
 
-    std::vector<BasicBlock*> dom_dfs_order_;
-    std::vector<BasicBlock*> dom_post_order_;
+    std::vector<BasicBlock*> dom_dfs_order_;  // 记录按DFS顺序访问支配树节点
+    std::vector<BasicBlock*> dom_post_order_; // dom_dfs_order_ 的逆序
 };

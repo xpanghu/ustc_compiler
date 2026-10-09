@@ -574,23 +574,24 @@ void CodeGen::gen_fcmp()
     load_to_freg(fcmpInst->get_operand(1), FReg::ft(1));
     switch (op)
     {
+        // LightIR prints unordered predicates (uge/ugt/ule/ult/ueq/une).
         case Instruction::fge:
-            append_inst("fcmp.sle.s $fcc0, $ft1, $ft0");
+            append_inst("fcmp.sule.s $fcc0, $ft1, $ft0");
             break;
         case Instruction::fgt:
-            append_inst("fcmp.slt.s $fcc0, $ft1, $ft0");
+            append_inst("fcmp.sult.s $fcc0, $ft1, $ft0");
             break;
         case Instruction::fle:
-            append_inst("fcmp.sle.s $fcc0, $ft0, $ft1");
+            append_inst("fcmp.sule.s $fcc0, $ft0, $ft1");
             break;
         case Instruction::flt:
-            append_inst("fcmp.slt.s $fcc0, $ft0, $ft1");
+            append_inst("fcmp.sult.s $fcc0, $ft0, $ft1");
             break;
         case Instruction::feq:
-            append_inst("fcmp.seq.s $fcc0, $ft0, $ft1");
+            append_inst("fcmp.sueq.s $fcc0, $ft0, $ft1");
             break;
         case Instruction::fne:
-            append_inst("fcmp.sne.s $fcc0, $ft0, $ft1");
+            append_inst("fcmp.sune.s $fcc0, $ft0, $ft1");
             break;
         default:
             break;

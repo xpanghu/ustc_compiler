@@ -1,15 +1,11 @@
 #ifndef CONSTPROPAGATION_HPP
 #define CONSTPROPAGATION_HPP
 #include "Constant.hpp"
-#include "IRBuilder.hpp"
 #include "Instruction.hpp"
 #include "Module.hpp"
 #include "PassManager.hpp"
 #include "Value.hpp"
 
-#include <stack>
-#include <unordered_map>
-#include <vector>
 ConstantFP *cast_constantfp(Value *value);
 ConstantInt *cast_constantint(Value *value);
 
@@ -34,18 +30,10 @@ public:
     void run() override;
 
 private:
-    // clear blocks recursively from the start_bb
-    void clear_blocks_recs(BasicBlock *start_bb);
-
-    // check if the bb is the entry block in func
-    bool is_entry(BasicBlock *bb);
-    IRBuilder builder{nullptr, m_};
-    std::vector<Instruction *> wait_delete;
+    Value *try_fold(Instruction *inst);
+    bool simplify_branch(BasicBlock *bb);
+    bool remove_unreachable_blocks(Function *func);
     ConstFolder folder{m_};
-    // std::stack<GlobalVariable*>
-    std::unordered_map<GlobalVariable *, Constant *> globalvar_def;
-    // basic blocks that need to be removed
-    std::vector<BasicBlock *> delete_bb;
 };
 
 #endif

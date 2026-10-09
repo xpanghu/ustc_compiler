@@ -1,6 +1,7 @@
 #include "Constant.hpp"
 
 #include <cstring>
+#include <cstdint>
 
 #include "Module.hpp"
 
@@ -24,7 +25,7 @@ static std::unordered_map<std::pair<int, Module *>,
 static std::unordered_map<std::pair<bool, Module *>,
                           std::unique_ptr<ConstantInt>, pair_hash>
     cached_bool;
-static std::unordered_map<std::pair<float, Module *>,
+static std::unordered_map<std::pair<uint32_t, Module *>,
                           std::unique_ptr<ConstantFP>, pair_hash>
     cached_float;
 static std::unordered_map<Type *, std::unique_ptr<ConstantZero>> cached_zero;
@@ -146,9 +147,14 @@ std::string ConstantArray::print() {
 }
 
 ConstantFP *ConstantFP::get(float val, Module *m) {
-    if (cached_float.find(std::make_pair(val, m)) != cached_float.end())
-        return cached_float[std::make_pair(val, m)].get();
-    auto ret = (cached_float[std::make_pair(val, m)] = std::unique_ptr<ConstantFP>(
+    // Intern by bits: numeric float equality merges signed zero and cannot
+    // recognize NaN keys, both of which matter to constant folding.
+    uint32_t bits;
+    memcpy(&bits, &val, sizeof(bits));
+    auto key = std::make_pair(bits, m);
+    if (cached_float.find(key) != cached_float.end())
+        return cached_float[key].get();
+    auto ret = (cached_float[key] = std::unique_ptr<ConstantFP>(
                 new ConstantFP(m->get_float_type(), val)))
         .get();
     return ret;

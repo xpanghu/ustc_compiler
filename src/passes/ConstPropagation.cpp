@@ -5,8 +5,11 @@
 
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <limits>
-#include <stdexcept>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 ConstantInt *ConstFolder::compute(Instruction::OpID op, ConstantInt *value1, ConstantInt *value2) {
     int c_value1 = value1->get_value();
@@ -138,56 +141,137 @@ ConstantInt *cast_constantint(Value *value) {
     return nullptr;
 }
 
+static bool same_value(Value *lhs, Value *rhs) {
+    if (lhs == rhs) return true;
+    if (lhs->get_type() != rhs->get_type()) return false;
+    if (auto a = cast_constantint(lhs)) {
+        auto b = cast_constantint(rhs);
+        return b && a->get_value() == b->get_value();
+    }
+    if (auto a = cast_constantfp(lhs)) {
+        auto b = cast_constantfp(rhs);
+        if (!b) return false;
+        // Numeric == merges +0/-0 and rejects identical NaN bit patterns.
+        float av = a->get_value(), bv = b->get_value();
+        return std::memcmp(&av, &bv, sizeof(float)) == 0;
+    }
+    return false;
+}
+
+Value *ConstPropagation::try_fold(Instruction *inst) {
+    auto op = inst->get_instr_type();
+    if (inst->isBinary() || inst->is_cmp() || inst->is_fcmp()) {
+        auto lhs = inst->get_operand(0), rhs = inst->get_operand(1);
+        if (auto a = cast_constantint(lhs)) {
+            if (auto b = cast_constantint(rhs)) return folder.compute(op, a, b);
+        }
+        if (auto a = cast_constantfp(lhs)) {
+            if (auto b = cast_constantfp(rhs)) return folder.compute(op, a, b);
+        }
+    } else if (inst->is_si2fp()) {
+        if (auto value = cast_constantint(inst->get_operand(0))) {
+            // The folder implements signed i32, not signed i1 (true is -1).
+            if (value->get_type()->is_int32_type()) return folder.compute(op, value);
+        }
+    } else if (inst->is_fp2si() && inst->get_type()->is_int32_type()) {
+        if (auto value = cast_constantfp(inst->get_operand(0))) return folder.compute(op, value);
+    } else if (inst->is_zext()) {
+        if (auto value = cast_constantint(inst->get_operand(0)))
+            return ConstantInt::get(value->get_value(), m_);
+    } else if (inst->is_phi() && inst->get_num_operand() != 0) {
+        auto candidate = inst->get_operand(0);
+        if (candidate == inst) return nullptr;
+        for (unsigned i = 2; i < inst->get_num_operand(); i += 2)
+            if (!same_value(candidate, inst->get_operand(i))) return nullptr;
+        return candidate;
+    }
+    return nullptr;
+}
+
+static void remove_phi_inputs(BasicBlock *bb, const std::unordered_set<BasicBlock *> &predecessors) {
+    for (auto inst : bb->get_instructions()) {
+        if (!inst->is_phi()) continue;
+        for (int i = static_cast<int>(inst->get_num_operand()) - 1; i >= 1; i -= 2) {
+            if (predecessors.count(static_cast<BasicBlock *>(inst->get_operand(i)))) {
+                inst->remove_operand(i);
+                inst->remove_operand(i - 1);
+            }
+        }
+    }
+}
+
+bool ConstPropagation::simplify_branch(BasicBlock *bb) {
+    auto branch = dynamic_cast<BranchInst *>(bb->get_terminator());
+    if (!branch || !branch->is_cond_br()) return false;
+    auto condition = cast_constantint(branch->get_condition());
+    if (!condition) return false;
+    auto keep = static_cast<BasicBlock *>(branch->get_operand(condition->get_value() ? 1 : 2));
+    auto drop = static_cast<BasicBlock *>(branch->get_operand(condition->get_value() ? 2 : 1));
+    if (keep != drop) remove_phi_inputs(drop, {bb});
+    // Destruction removes CFG edges; construction adds them. This order matters.
+    bb->erase_instr(branch);
+    BranchInst::create_br(keep, bb);
+    return true;
+}
+
+bool ConstPropagation::remove_unreachable_blocks(Function *func) {
+    std::unordered_set<BasicBlock *> reachable;
+    std::vector<BasicBlock *> work{func->get_entry_block()};
+    while (!work.empty()) {
+        auto bb = work.back();
+        work.pop_back();
+        if (!reachable.insert(bb).second) continue;
+        for (auto succ : bb->get_succ_basic_blocks()) work.push_back(succ);
+    }
+    std::unordered_set<BasicBlock *> dead;
+    for (auto bb : func->get_basic_blocks())
+        if (!reachable.count(bb)) dead.insert(bb);
+    if (dead.empty()) return false;
+    for (auto bb : reachable) remove_phi_inputs(bb, dead);
+    // Break every dead branch while all its source/target blocks still exist.
+    // This also handles mutually unreachable cycles without dangling CFG links.
+    for (auto bb : dead)
+        if (auto branch = dynamic_cast<BranchInst *>(bb->get_terminator())) bb->erase_instr(branch);
+    for (auto bb : dead) bb->erase_from_parent();
+    for (auto bb : dead) delete bb;
+    return true;
+}
+
 void ConstPropagation::run() {
-    for (auto *func : m_->get_functions()) {
-
-        for (auto *bb : func->get_basic_blocks()) {
-            wait_delete.clear();
-
-            for (auto *instr : bb->get_instructions()) {
-                // clear glbalvar_def map
-
-                if (instr->is_add() || instr->is_sub() || instr->is_mul() || instr->is_div()) {
-                    auto value1 = cast_constantint(instr->get_operand(0));
-                    auto value2 = cast_constantint(instr->get_operand(1));
-                    if (value1 && value2) {
-                        if (auto fold_const = folder.compute(instr->get_instr_type(), value1, value2)) {
-                            instr->replace_all_use_with(fold_const);
-                            wait_delete.push_back(instr);
-                        }
+    for (auto func : m_->get_functions()) {
+        if (func->is_declaration()) continue;
+        bool changed;
+        do {
+            changed = false;
+            for (auto bb : func->get_basic_blocks()) {
+                std::vector<Instruction *> wait_delete;
+                // Facts apply only after a store in this block, never at entry.
+                std::unordered_map<GlobalVariable *, Constant *> globalvar_def;
+                for (auto inst : bb->get_instructions()) {
+                    Value *replacement = try_fold(inst);
+                    if (inst->is_store()) {
+                        auto global = dynamic_cast<GlobalVariable *>(inst->get_operand(1));
+                        if (!global) globalvar_def.clear(); // possible alias
+                        else if (auto value = dynamic_cast<Constant *>(inst->get_operand(0)))
+                            globalvar_def[global] = value;
+                        else globalvar_def.erase(global);
+                    } else if (inst->is_call()) {
+                        globalvar_def.clear(); // unknown memory effects
+                    } else if (inst->is_load()) {
+                        auto global = dynamic_cast<GlobalVariable *>(inst->get_operand(0));
+                        auto known = globalvar_def.find(global);
+                        if (known != globalvar_def.end()) replacement = known->second;
+                    }
+                    if (replacement) {
+                        inst->replace_all_use_with(replacement);
+                        wait_delete.push_back(inst);
+                        changed = true;
                     }
                 }
-                // TODO: fold other type of expression
+                for (auto inst : wait_delete) bb->erase_instr(inst);
             }
-            globalvar_def.clear();
-            for (auto instr : wait_delete) {
-                bb->erase_instr(instr);
-            }
-        }
+            for (auto bb : func->get_basic_blocks()) changed |= simplify_branch(bb);
+            changed |= remove_unreachable_blocks(func);
+        } while (changed);
     }
-
-    for (auto *func : m_->get_functions()) {
-        for (auto *bb : func->get_basic_blocks()) {
-            builder.set_insert_point(bb);
-            // TODO: check if conditional branch's condition is constant
-        }
-        for (auto bb : delete_bb) {
-            // delete unuseful basic block
-            // func->remove(bb);
-            clear_blocks_recs(bb);
-        }
-        delete_bb.clear();
-    }
-}
-
-bool ConstPropagation::is_entry(BasicBlock *bb) {
-    // TODO
-    throw std::runtime_error("Lab5 ConstPropagation: is_entry TODO is not implemented");
-}
-
-void ConstPropagation::clear_blocks_recs(BasicBlock *start_bb) {
-    // TODO: adapt unreachable-block/PHI cleanup after implementing branch folding.
-    // The old intrusive-list helper cannot safely delete current pointer-list IR.
-    // Use erase_instr for discarded instructions; remove_instr only detaches them.
-    throw std::runtime_error("Lab5 ConstPropagation: CFG cleanup TODO is not implemented");
 }

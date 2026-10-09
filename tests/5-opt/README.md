@@ -1,7 +1,8 @@
 # Lab5：接入状态与使用
 
-本分支已经接入 Lab5 基础代码，**没有完成 Lab5 优化算法**。
-已完成的 Lab1–4 前端、IR、LoongArch 后端、Mem2Reg、LICM 和相关分析保持不变。
+本分支已完成当前框架下的保守 **ConstPropagation**；**GVN 算法仍未完成**。
+继续使用已完成的 Lab1–4 基础设施；除下述浮点常量缓存和后端比较语义修正外，
+前端、IR 接口、Mem2Reg、LICM 和相关分析保持不变。
 
 ## 来源与版本
 
@@ -18,10 +19,13 @@
 
 ## 当前能做什么
 
-- `-const-prop`：保留课程已有的整数 add/sub/mul/sdiv 常量折叠基线。
-  支持直接常量及前面表达式折叠后带来的常量操作数，不是完整的数据流常量传播。
+- `-const-prop`：整数/浮点算术和比较、sitofp/fptosi/zext 常量折叠，
+  SSA use 替换、平凡 PHI 简化、常量条件分支和入口不可达块清理。
+  上述步骤迭代到不动点，不依赖函数基本块列表的排列顺序。
+  同一基本块内支持全局变量常量 store → load 转发；遇到调用、可能别名的写入，
+  或对该全局的非常量写入时失效。不会跨基本块传递内存事实或假定可变全局始终等于初始化值。
 - ConstFolder：提供整数/浮点算术、比较、数值转换辅助函数；
-  辅助函数存在不等于对应操作已经接入 ConstPropagation 的遍历。
+  已接入 ConstPropagation 的遍历，GVN 也复用这些辅助函数。
 - `-gvn`、`-dump-json`：开关和 pipeline 位置已接入，但 GVN 明确拒绝执行，
   返回非零退出码与 `Lab5 GVN: algorithm TODOs are not implemented`。
 - `-licm`：继续使用已经完成的 Lab4 实现，未改为旧教材 pass。
@@ -45,10 +49,17 @@
    替换阶段显式接收 pout，以便独立验证，不开放分析私有状态。
 6. 空 partition 不解引用 begin；未完成的 join/intersect 不落到函数末尾；
    run/detectEquivalences 入口有明确的安全占位，不运行不完整迭代。
-7. ConstPropagation 的 builder/folder 改为值成员；丢弃的指令使用 erase_instr 删除，
+7. ConstPropagation 的 folder 为值成员；丢弃的指令使用 erase_instr 删除，
    而非仅 detach 后留下悬空 use 或泄漏。
-8. 旧递归 CFG 清理辅助函数不安全，暂时保留接口并显式拒绝执行。
-   它尚未由分支折叠调用，不影响当前整数折叠基线。
+8. 旧递归 CFG 清理及入口判断占位已由入口可达性搜索替代，能删除不可达环。
+   分支改写先清理被丢弃边对应的 PHI 输入，先析构旧分支再创建新分支。
+   批量删块先删除所有死块的分支，再 detach/delete 块，保证 CFG 析构时目标仍存活。
+9. 浮点常量按位模式缓存，修正数值 float 键合并 +0/-0、无法识别 NaN 键的问题。
+   PHI 常量相等判断也保留浮点位模式和类型差异。
+10. NaN 端到端回归发现原 LoongArch 后端使用 ordered 比较，与 LightIR 的 unordered
+    比较不一致。只修正 gen_fcmp 的六个谓词映射为 SULE/SULT/SUEQ/SUNE，
+    保留原操作数顺序与 signalling 形式，不改变 IR 或语言的比较语义。
+    对照依据为[龙芯官方手册比较条件表](https://loongson.github.io/LoongArch-Documentation/LoongArch-Vol1-EN.html#_fcmp_cond_s_d)。
 
 表达式类、同余类和数据流迭代的课程组织保留。
 框架适合作为教学起点；这些修正不意味着 leader 支配性、内存副作用建模、
@@ -56,7 +67,11 @@ analysis invalidation 或 IR verifier 已经完整。
 
 ## 后续练习位置
 
-ConstPropagation.cpp：扩展表达式折叠、条件分支简化、入口判断、CFG/PHI 清理。
+ConstPropagation 已采用反复扫描实现，不是 SCCP：没有值格、可执行边分析或稀疏工作队列。
+保留整数溢出拒绝折叠的安全策略，不实现模 i32 溢出折叠；
+内存传播刻意限制在基本块内，不做全局内存数据流或别名分析。
+局部变量通常先由 Mem2Reg 转为 SSA；不启用 Mem2Reg 时仍可折叠直接常量表达式。
+
 GVN.hpp / GVN.cpp：表达式类型、join/intersect、数据流初始化与合流、transfer、
 valueExpr/valuePhiFunc/getVN、leader 选择和收敛判定。
 
@@ -70,11 +85,16 @@ GVN 的课程 JSON 名称对应旧前端；先确认块名/值名映射，再解
 在项目根目录运行：
 
 ```sh
-cmake --build build --target cminusfc test_lab5_scaffold test_licm -j6
+cmake --build build --target cminusfc test_constprop test_lab5_scaffold test_licm -j6
+build/test_constprop
 build/test_lab5_scaffold
 python3 tests/5-opt/test_cli.py build/cminusfc
 python3 -m unittest discover -s tests/5-opt -p test_eval.py
 build/test_licm
+
+# 11 个程序：raw / optimized 执行、预期输出、IR 结构和 LLVM verifier
+python3 tests/5-opt/test_constprop.py \
+  --clang /opt/homebrew/opt/llvm/bin/clang --opt /opt/homebrew/opt/llvm/bin/opt
 ```
 
 当前基础设施测试和默认功能入口只需 Python 标准库。
@@ -88,7 +108,7 @@ build/test_licm
 python3 tests/5-opt/eval_lab5.py --suite all --mode mem2reg \
   --clang /opt/homebrew/opt/llvm/bin/clang
 
-# 4 个常量传播用例：验证目前的部分折叠不会改变结果，不代表算法已完整
+# 4 个原始常量传播用例：优化后执行输出与课程 baseline 一致
 python3 tests/5-opt/eval_lab5.py --suite const-prop --mode optimized \
   --clang /opt/homebrew/opt/llvm/bin/clang
 
@@ -117,7 +137,18 @@ LoongArch 后端回归仍使用已安装的容器（本次名称为 `jianmu-dev`
 
 ```sh
 docker exec jianmu-dev sh -lc 'cmake --build /workspace/build -j6'
+docker exec jianmu-dev /workspace/build/test_constprop
+docker exec jianmu-dev python3 /workspace/tests/5-opt/test_constprop.py \
+  --compiler /workspace/build/cminusfc --target loongarch
 docker exec -w /workspace/tests/4-opt jianmu-dev /workspace/build/eval_lab4 all testcases debug
 ```
 
 旧 eval_lab4 会在失败后仍返回零，所以还必须确认 all_log.txt 的 33 项结果全部为 OK。
+
+ConstPropagation 专项内部回归为 14 组，检查所有整数运算/比较、浮点运算/比较、
+NaN/有符号零、非法折叠保留、PHI、逆序基本块、不动点、被删除的可达边、同目标分支、
+不可达循环、循环变化值、内存屏障，并检查 CFG/支配性/双向 use-list 和重复运行不变。
+端到端 11 个程序在 native LLVM 与 LoongArch/QEMU 两条路径均通过 raw/optimized 对照，
+每份生成 IR 均经过 LLVM verifier。此处只验证正确性和优化确实发生，不提供性能结论。
+NaN 回归覆盖左右两侧 NaN 和全部六种比较；有限值回归覆盖小于、等于、大于，
+避免仅用 NaN 全真结果掩盖后端操作数顺序错误。
