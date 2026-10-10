@@ -4,6 +4,7 @@
 #include "Module.hpp"
 #include "Register.hpp"
 #include <unordered_map>
+#include <optional>
 
 class CodeGen {
   public:
@@ -31,12 +32,12 @@ class CodeGen {
 
   private:
     void allocate();
-    void copy_stmt(); // for phi copy
+    void copy_stmt(BasicBlock* successor); // for phi copy
 
     // 向寄存器中装载数据
-    void load_to_greg(Value *, const Reg &);
-    void load_to_freg(Value *, const FReg &);
-    void load_from_stack_to_greg(Value *, const Reg &);
+    void load_to_greg(Value *, const Reg &, std::optional<int> offset = std::nullopt);
+    void load_to_freg(Value *, const FReg &, std::optional<int> offset = std::nullopt);
+    void load_from_stack_to_greg(Value *, const Reg &, std::optional<int> offset = std::nullopt);
 
     // 向寄存器中加载立即数
     void load_large_int32(int32_t, const Reg &);
@@ -44,8 +45,8 @@ class CodeGen {
     void load_float_imm(float, const FReg &);
 
     // 将寄存器中的数据保存回栈上
-    void store_from_greg(Value *, const Reg &);
-    void store_from_freg(Value *, const FReg &);
+    void store_from_greg(Value *, const Reg &, std::optional<int> offset = std::nullopt);
+    void store_from_freg(Value *, const FReg &, std::optional<int> offset = std::nullopt);
 
     void gen_prologue();
     void gen_ret();
@@ -71,6 +72,7 @@ class CodeGen {
         Instruction *inst{nullptr}; // 当前指令
         /* 在allocate()中设置 */
         unsigned frame_size{0}; // 当前函数的栈帧大小
+        std::unordered_map<Value *, int> phi_scratch_map{};
         std::unordered_map<Value *, int> offset_map{}; // 指针相对 fp 的偏移
 
         void clear() {
@@ -79,6 +81,7 @@ class CodeGen {
             inst = nullptr;
             frame_size = 0;
             offset_map.clear();
+            phi_scratch_map.clear();
         }
 
     } context;

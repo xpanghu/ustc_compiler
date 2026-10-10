@@ -10,6 +10,7 @@
 #include "Register.hpp"
 #include "Type.hpp"
 #include <string>
+#include <vector>
 
 
 void CodeGen::allocate()
@@ -39,45 +40,70 @@ void CodeGen::allocate()
             }
         }
     }
+    for (auto& bb : context.func->get_basic_blocks())
+    {
+        for (auto& instr : bb->get_instructions())
+        {
+            if (instr->is_phi())
+            {
+                auto size = instr->get_type()->get_size();
+                offset = ALIGN(offset + size, size > 8 ? 8 : size);
+                context.phi_scratch_map[instr] = -static_cast<int>(offset);
+            }
+        }
+    }
     context.frame_size = ALIGN(offset, PROLOGUE_ALIGN);
 }
 
-void CodeGen::copy_stmt()
+void CodeGen::copy_stmt(BasicBlock* successor)
 {
-    for (auto& succ : context.bb->get_succ_basic_blocks())
+    std::vector<std::pair<Instruction*, Value*>> copies;
     {
-        for (auto& inst : succ->get_instructions())
+        for (auto& inst : successor->get_instructions())
         {
-            if (inst->is_phi())
+            if (not inst->is_phi()) break;
+            for (unsigned i = 1; i < inst->get_operands().size(); i += 2)
             {
-                for (unsigned i = 1; i < inst->get_operands().size(); i += 2)
+                if (inst->get_operand(i) == context.bb)
                 {
-                    if (inst->get_operand(i) == context.bb)
-                    {
-                        auto* lvalue = inst->get_operand(i - 1);
-                        if (lvalue->get_type()->is_float_type())
-                        {
-                            load_to_freg(lvalue, FReg::fa(0));
-                            store_from_freg(inst, FReg::fa(0));
-                        }
-                        else
-                        {
-                            load_to_greg(lvalue, Reg::a(0));
-                            store_from_greg(inst, Reg::a(0));
-                        }
-                        break;
-                    }
+                    copies.emplace_back(inst, inst->get_operand(i - 1));
+                    break;
                 }
             }
-            else
-            {
-                break;
-            }
+        }
+    }
+    // PHI assignments are simultaneous: snapshot every source before writing destinations.
+    for (auto [dest, source] : copies)
+    {
+        auto offset = context.phi_scratch_map.at(dest);
+        if (dest->get_type()->is_float_type())
+        {
+            load_to_freg(source, FReg::fa(0));
+            store_from_freg(dest, FReg::fa(0), offset);
+        }
+        else
+        {
+            load_to_greg(source, Reg::a(0));
+            store_from_greg(dest, Reg::a(0), offset);
+        }
+    }
+    for (auto [dest, source] : copies)
+    {
+        auto offset = context.phi_scratch_map.at(dest);
+        if (dest->get_type()->is_float_type())
+        {
+            load_to_freg(dest, FReg::fa(0), offset);
+            store_from_freg(dest, FReg::fa(0));
+        }
+        else
+        {
+            load_to_greg(dest, Reg::a(0), offset);
+            store_from_greg(dest, Reg::a(0));
         }
     }
 }
 
-void CodeGen::load_to_greg(Value* val, const Reg& reg)
+void CodeGen::load_to_greg(Value* val, const Reg& reg, std::optional<int> stack_offset)
 {
     assert(val->get_type()->is_integer_type() ||
         val->get_type()->is_pointer_type());
@@ -100,7 +126,7 @@ void CodeGen::load_to_greg(Value* val, const Reg& reg)
     }
     else
     {
-        load_from_stack_to_greg(val, reg);
+        load_from_stack_to_greg(val, reg, stack_offset);
     }
 }
 
@@ -125,9 +151,9 @@ void CodeGen::load_large_int64(int64_t val, const Reg& reg)
                 {reg.print(), reg.print(), std::to_string(high_32_high_12)});
 }
 
-void CodeGen::load_from_stack_to_greg(Value* val, const Reg& reg)
+void CodeGen::load_from_stack_to_greg(Value* val, const Reg& reg, std::optional<int> stack_offset)
 {
-    auto offset = context.offset_map.at(val);
+    auto offset = stack_offset.value_or(context.offset_map.at(val));
     auto offset_str = std::to_string(offset);
     auto* type = val->get_type();
     if (IS_IMM_12(offset))
@@ -164,9 +190,9 @@ void CodeGen::load_from_stack_to_greg(Value* val, const Reg& reg)
     }
 }
 
-void CodeGen::store_from_greg(Value* val, const Reg& reg)
+void CodeGen::store_from_greg(Value* val, const Reg& reg, std::optional<int> stack_offset)
 {
-    auto offset = context.offset_map.at(val);
+    auto offset = stack_offset.value_or(context.offset_map.at(val));
     auto offset_str = std::to_string(offset);
     auto* type = val->get_type();
     if (IS_IMM_12(offset))
@@ -204,7 +230,7 @@ void CodeGen::store_from_greg(Value* val, const Reg& reg)
     }
 }
 
-void CodeGen::load_to_freg(Value* val, const FReg& freg)
+void CodeGen::load_to_freg(Value* val, const FReg& freg, std::optional<int> stack_offset)
 {
     assert(val->get_type()->is_float_type());
     if (auto* constant = dynamic_cast<ConstantFP*>(val))
@@ -214,7 +240,7 @@ void CodeGen::load_to_freg(Value* val, const FReg& freg)
     }
     else
     {
-        auto offset = context.offset_map.at(val);
+        auto offset = stack_offset.value_or(context.offset_map.at(val));
         auto offset_str = std::to_string(offset);
         if (IS_IMM_12(offset))
         {
@@ -238,9 +264,9 @@ void CodeGen::load_float_imm(float val, const FReg& r)
     append_inst(GR2FR WORD, {r.print(), Reg::t(8).print()});
 }
 
-void CodeGen::store_from_freg(Value* val, const FReg& r)
+void CodeGen::store_from_freg(Value* val, const FReg& r, std::optional<int> stack_offset)
 {
-    auto offset = context.offset_map.at(val);
+    auto offset = stack_offset.value_or(context.offset_map.at(val));
     if (IS_IMM_12(offset))
     {
         auto offset_str = std::to_string(offset);
@@ -363,12 +389,18 @@ void CodeGen::gen_br()
         load_to_greg(branchInst->get_operand(0), Reg::t(0));
         auto* trueBB = dynamic_cast<BasicBlock*>(branchInst->get_operand(1));
         auto* falseBB = dynamic_cast<BasicBlock*>(branchInst->get_operand(2));
-        append_inst("bnez", {Reg::t(0).print(), trueBB->get_name()});
+        // Numeric assembler labels are local, so repeated edge dispatches cannot collide.
+        append_inst("bnez", {Reg::t(0).print(), "1f"});
+        copy_stmt(falseBB);
         append_inst("b", {falseBB->get_name()});
+        append_inst("1", ASMInstruction::Label);
+        copy_stmt(trueBB);
+        append_inst("b", {trueBB->get_name()});
     }
     else
     {
         auto* branchbb = dynamic_cast<BasicBlock*>(branchInst->get_operand(0));
+        copy_stmt(branchbb);
         append_inst("b " + branchbb->get_name());
     }
 }
@@ -740,7 +772,6 @@ void CodeGen::run()
                             gen_ret();
                             break;
                         case Instruction::br:
-                            copy_stmt();
                             gen_br();
                             break;
                         case Instruction::add:

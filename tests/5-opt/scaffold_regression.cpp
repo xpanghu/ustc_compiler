@@ -1,5 +1,6 @@
 #include "ConstPropagation.hpp"
 #include "GVN.hpp"
+#include "DeadCode.hpp"
 
 #include <iostream>
 #include <limits>
@@ -109,12 +110,22 @@ static void test_top(Module &m) {
     check(GVN::isTop({GVN::createCongruenceClass(0)}), "top sentinel is recognized");
 }
 
-static void test_unfinished(Module &m) {
-    GVN gvn(&m, false);
-    bool rejected = false;
-    try { gvn.run(); }
-    catch (const std::runtime_error &e) { rejected = std::string(e.what()).find("Lab5 GVN") != std::string::npos; }
-    check(rejected, "unfinished GVN must reject execution explicitly");
+static void test_scalar(Module &m) {
+    auto f = function(m, "main", {m.get_int32_type()});
+    auto bb = BasicBlock::create(&m, "entry", f);
+    auto arg = f->get_args().front();
+    auto one = ConstantInt::get(1, &m);
+    auto first = IBinaryInst::create_add(arg, one, bb);
+    auto duplicate = IBinaryInst::create_add(arg, one, bb);
+    auto result = IBinaryInst::create_mul(first, duplicate, bb);
+    ReturnInst::create_ret(result, bb);
+    GVN(&m, false).run();
+    check(result->get_operand(0) == result->get_operand(1), "GVN must reuse duplicate scalar computation");
+    DeadCode(&m, false).run();
+    unsigned adds = 0;
+    for (auto &inst : bb->get_instructions())
+        if (inst->is_add()) ++adds;
+    check(adds == 1, "explicit DCE must remove the duplicate add");
 }
 
 int main(int argc, char **argv) {
@@ -124,7 +135,7 @@ int main(int argc, char **argv) {
         Module m;
         for (const auto &[name, test] : std::vector<std::pair<std::string, void (*)(Module &)>>{
                  {"float", test_float}, {"integer", test_integer}, {"gvn-folder", test_gvn_folder},
-                 {"phi", test_phi}, {"top", test_top}, {"unfinished", test_unfinished}}) {
+                 {"phi", test_phi}, {"top", test_top}, {"scalar", test_scalar}}) {
             if (group == "all" || group == name) { test(m); ++count; }
         }
         check(count != 0, "unknown regression group");

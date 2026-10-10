@@ -54,6 +54,12 @@ class EvaluatorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.module.check_partitions(actual, expected)
 
+    def test_boolean_and_integer_members_are_distinct(self):
+        expected = [{"function": "main", "pout": {"entry": [[True]]}}]
+        actual = [{"function": "main", "pout": {"entry": [[1]]}}]
+        with self.assertRaises(ValueError):
+            self.module.check_partitions(actual, expected)
+
     def test_stale_ir_cannot_turn_missing_compiler_output_into_pass(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)

@@ -8,6 +8,7 @@
 #include "Function.hpp"
 #include "Instruction.hpp"
 #include "PassManager.hpp"
+#include "LoopDetection.hpp"
 
 /**
  * @brief 循环不变式外提Pass的主入口函数
@@ -71,6 +72,7 @@ std::unordered_set<Value*> LoopInvariantCodeMotion::collect_loop_store_vars(Loop
             }
         }
     }
+
     return collect;
 }
 
@@ -98,6 +100,8 @@ enum InstructionType: std::uint8_t
  */
 void LoopInvariantCodeMotion::run_on_loop(Loop* loop)
 {
+
+    // 1. 收集循环中的不变量
     // 循环 store 过的变量
     std::unordered_set<Value*> loop_stores_var = collect_loop_store_vars(loop);
     // 循环中的所有指令
@@ -174,6 +178,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop)
 
     if (invariants.empty()) return;
 
+    // 将循环不变量外提，插入 preheader 中
     auto header = loop->get_header();
     std::unordered_set<BasicBlock*> blocks(loop->get_blocks().begin(), loop->get_blocks().end());
     std::vector<BasicBlock*> outside_preds;

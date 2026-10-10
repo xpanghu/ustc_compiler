@@ -61,7 +61,7 @@ def read_partition(path):
 
 def check_partitions(actual, expected):
     def canonical(functions):
-        return {f["function"]: {bb: Counter(frozenset(cc) for cc in p) for bb, p in f["pout"].items()}
+        return {f["function"]: {bb: Counter(frozenset((type(member).__name__, member) for member in cc) for cc in p) for bb, p in f["pout"].items()}
                 for f in functions}
     if canonical(actual) != canonical(expected):
         raise ValueError("GVN partitions differ from the course reference (block/value names are version-dependent)")

@@ -1,7 +1,7 @@
 # Lab5：接入状态与使用
 
-本分支已完成当前框架下的保守 **ConstPropagation**；**GVN 算法仍未完成**。
-继续使用已完成的 Lab1–4 基础设施；除下述浮点常量缓存和后端比较语义修正外，
+本分支提供当前框架下的保守 **ConstPropagation** 和函数内 **GVN**。
+继续使用已完成的 Lab1–4 基础设施；除下述浮点常量缓存、后端比较与 PHI 拷贝修正外，
 前端、IR 接口、Mem2Reg、LICM 和相关分析保持不变。
 
 ## 来源与版本
@@ -26,12 +26,15 @@
   或对该全局的非常量写入时失效。不会跨基本块传递内存事实或假定可变全局始终等于初始化值。
 - ConstFolder：提供整数/浮点算术、比较、数值转换辅助函数；
   已接入 ConstPropagation 的遍历，GVN 也复用这些辅助函数。
-- `-gvn`、`-dump-json`：开关和 pipeline 位置已接入，但 GVN 明确拒绝执行，
-  返回非零退出码与 `Lab5 GVN: algorithm TODOs are not implemented`。
+- `-gvn`：类型化标量 CSE、PHI 合流与 PHI-of-ops、相同 GEP 地址计算、已证明纯函数调用复用。
+  替换检查支配性/指令顺序和 PHI 对应入边；load、alloca、外部或不纯调用保留独立身份。
+  不实现通用 load CSE、PRE、浮点重结合或跨函数优化。
+- `-dump-json`：向当前工作目录的 `gvn.json` 写入收敛后、替换前的严格 JSON 快照。
+  i1/i32 分别输出布尔/整数；其他常量输出带类型的字符串。写入失败返回非零退出码。
 - `-licm`：继续使用已经完成的 Lab4 实现，未改为旧教材 pass。
 
 预期顺序为 Mem2Reg/DCE → ConstPropagation/DCE → GVN/DCE → LICM/DCE，
-只运行启用的 pass。GVN 当前在进入 pipeline 前被安全检查拦住。
+只运行启用的 pass。GVN 只在正式 pipeline 中运行一次；后置 DCE 清理冗余指令。
 `-gvn` 必须配合 `-mem2reg`，`-dump-json` 必须配合 `-gvn`。
 
 ## 对基础代码做了哪些必要修正
@@ -45,10 +48,9 @@
    这不是完整的任意位宽或模整数折叠实现。
 4. GVN 的 folder 复用修正后的 ConstFolder，避免两个 pass 的边界行为不同。
 5. PHI 替换只作用于 value operand 配对的 incoming block，不能因为目标块是某个前驱，
-   就替换 PHI 的所有同名 incoming 值。普通 use 仍限定在对应块内。
+   就替换 PHI 的所有同名 incoming 值。代表还须在对应使用点可用。
    替换阶段显式接收 pout，以便独立验证，不开放分析私有状态。
-6. 空 partition 不解引用 begin；未完成的 join/intersect 不落到函数末尾；
-   run/detectEquivalences 入口有明确的安全占位，不运行不完整迭代。
+6. TOP 与空事实区分，partition 收敛判断不依赖展示编号；循环 PHI 按入边并行投影。
 7. ConstPropagation 的 folder 为值成员；丢弃的指令使用 erase_instr 删除，
    而非仅 detach 后留下悬空 use 或泄漏。
 8. 旧递归 CFG 清理及入口判断占位已由入口可达性搜索替代，能删除不可达环。
@@ -62,8 +64,16 @@
     对照依据为[龙芯官方手册比较条件表](https://loongson.github.io/LoongArch-Documentation/LoongArch-Vol1-EN.html#_fcmp_cond_s_d)。
 
 表达式类、同余类和数据流迭代的课程组织保留。
-框架适合作为教学起点；这些修正不意味着 leader 支配性、内存副作用建模、
-analysis invalidation 或 IR verifier 已经完整。
+内存分析仍不等价于完整别名分析，各 pass 自行建立所需分析。
+
+嵌套循环的 PHI 交换回归发现原 LoongArch `copy_stmt` 按顺序写目标栈槽，
+`a ← b; b ← a` 会让第二次读取已覆盖的 a；问题在 mem2reg 模式已出现，GVN 前后 IR 相同。
+后端现为每个 PHI 分配临时栈槽，在写任何目标之前暂存全部源，再统一复制到目标。
+另一个直接 SSA 条件自回边回归发现未选择的回边复制也会覆盖出口仍需使用的 PHI 值：
+循环退出应返回 3，原后端返回 4。现在先判断分支条件，使用局部汇编标签进入所选边，
+仅复制该边的 PHI 输入；原 IR CFG 不变。
+修改只涉及 PHI 复制和所需栈槽/偏移访问；寄存器分配与控制流保持原状。
+此修正增加 PHI 边的临时内存复制，不宣称改善后端性能。
 
 ## 后续练习位置
 
@@ -72,12 +82,13 @@ ConstPropagation 已采用反复扫描实现，不是 SCCP：没有值格、可�
 内存传播刻意限制在基本块内，不做全局内存数据流或别名分析。
 局部变量通常先由 Mem2Reg 转为 SSA；不启用 Mem2Reg 时仍可折叠直接常量表达式。
 
-GVN.hpp / GVN.cpp：表达式类型、join/intersect、数据流初始化与合流、transfer、
-valueExpr/valuePhiFunc/getVN、leader 选择和收敛判定。
+GVN 保持保守内存边界：相同地址可以复用，store 前后的 load 不合并。
+循环状态只保存有限的成员关系和表达式键；旧操作数没有存活名称时丢弃该表达式事实，
+不递归展开 PHI，不证明一般归纳等式。无法追踪指针来源的函数调用也保守拒绝复用。
+GVN 内部 18 组回归覆盖类型/位模式、状态契约、可用性、三前驱、多回边、并行 PHI、
+合流块区别、PHI-of-ops、常量折叠后事实保留、副作用、不可达入边和 JSON 转义。
+PassManager 使用独占所有权，即使 pass 抛出异常也释放所有 pass；main 报告运行错误并返回非零。
 
-完成 GVN 后，应移除 `GVN::run` 与 `detectEquivalences` 的入口保护，
-以及 main.cpp 的接入期 preflight 检查，只保留 pipeline 中真正的 GVN 执行。
-不要只删保护后把现有骨架当成完整算法运行。
 GVN 的课程 JSON 名称对应旧前端；先确认块名/值名映射，再解释评分，不能把名称不同视为优化错误。
 
 ## 构建与基础设施回归
@@ -85,7 +96,8 @@ GVN 的课程 JSON 名称对应旧前端；先确认块名/值名映射，再解
 在项目根目录运行：
 
 ```sh
-cmake --build build --target cminusfc test_constprop test_lab5_scaffold test_licm -j6
+cmake --build build --target cminusfc test_gvn test_constprop test_lab5_scaffold test_licm -j6
+build/test_gvn all
 build/test_constprop
 build/test_lab5_scaffold
 python3 tests/5-opt/test_cli.py build/cminusfc
@@ -97,8 +109,38 @@ python3 tests/5-opt/test_constprop.py \
   --clang /opt/homebrew/opt/llvm/bin/clang --opt /opt/homebrew/opt/llvm/bin/opt
 ```
 
-当前基础设施测试和默认功能入口只需 Python 标准库。
-只有在完成 GVN、读取原 serializer 的 JSON5 输出时才可能需要 json5；
+GVN 端到端专项覆盖 8 个回归：7 个 Cminus 程序比较 raw、mem2reg、mem2reg+gvn，
+并运行 const-prop+gvn+licm 组合；另一个直接 SSA 构造用例比较 raw/GVN，
+覆盖条件自回边和整数/浮点 PHI 交换。所有 IR 经 verifier，分支运行两侧输入，循环运行 0/1/5 次。
+脚本打印工具版本和 mem2reg/GVN 的指令计数，同时检查标量链、PHI-of-ops、
+纯调用、地址计算确实消除冗余，以及副作用和独立 load 保留。
+
+```sh
+python3 tests/5-opt/test_gvn.py \
+  --clang /opt/homebrew/opt/llvm/bin/clang --opt /opt/homebrew/opt/llvm/bin/opt
+docker exec jianmu-dev python3 /workspace/tests/5-opt/test_gvn.py \
+  --compiler /workspace/build/cminusfc --target loongarch
+```
+
+native（LLVM 22.1.8）与 LoongArch/QEMU（LLVM 14、GCC 12.0.1、QEMU 6.2.50）
+均通过 8 个回归的输出和 verifier 检查。两条路径的 mem2reg → GVN 计数一致：
+
+| 程序 | 优化证据 | 保留行为 |
+| --- | --- | --- |
+| 标量链 | add 2 → 1，mul 2 → 1 | input 2 次 |
+| 菱形 PHI | add 3 → 2，PHI 3 → 1 | 两侧分支结果一致 |
+| 循环 | add 5 → 4 | PHI 2 个，0/1/5 次输出正确 |
+| 嵌套循环交换 | PHI 6 个保留 | 0/1/5 次输出正确 |
+| 直接 SSA PHI | 条件自回边，整数/浮点交换 | raw/GVN 输出 3、2、1、2.5、1.5 |
+| 纯/不纯调用 | pure 2 → 1 | input/read 各 2 次 |
+| 数组地址 | GEP 8 → 3 | load 4 次，alias store 后值正确 |
+| 浮点边界 | fadd 2 → 1 | 负零、NaN 比较结果正确 |
+
+未测量生成程序运行速度，不据此宣称加速。
+
+脚本启动时检查 LLVM opt、本机 clang 或交叉 GCC/QEMU 是否存在，缺少工具时明确失败。
+当前 GVN dump 和测试只需 Python 标准库。
+读取历史 JSON5 文件时才可能需要 json5；
 请在自己的虚拟环境显式安装，例如 `uv pip install json5`，脚本不会自动安装。
 
 ## 课程用例检查
@@ -116,10 +158,31 @@ python3 tests/5-opt/eval_lab5.py --suite const-prop --mode optimized \
 python3 tests/5-opt/eval_lab5.py --suite licm --mode optimized \
   --clang /opt/homebrew/opt/llvm/bin/clang
 
-# 当前预期失败，待实现 GVN 后才作为算法验收
+# 旧参考的块名/值名差异必须单独解释，不能覆盖 golden
 python3 tests/5-opt/eval_lab5.py --suite gvn-functional --mode optimized \
   --clang /opt/homebrew/opt/llvm/bin/clang
 ```
+
+本次旧课程 functional 的 JSON 比较为 **0/8**，但 8 份生成 IR 均通过 LLVM verifier。
+参考使用 `label_entry/labelN`，当前使用 `main_entry/main_N`；用例 6、8 的 main 块数还分别
+从参考的 15、33 变为当前的 7、13，不能建立简单一一名称映射。
+当前 dump 也包含类型化常量、参数/全局边界事实及替换前指令，因此不能把旧 partition 完全相同
+作为当前算法正确性的唯一判据。golden 保持原始字节，未用新输出覆盖。
+下面是同一当前前端下 mem2reg → GVN 的结构证据，详细计数保存于
+`output/gvn-plan-validation/summary.json`：
+
+| 旧 functional 用例 | mem2reg → GVN |
+| --- | --- |
+| 1 | add 2 → 1 |
+| 2 | add 7 → 0，PHI 3 → 1；两次 output 使用同一 PHI |
+| 3 | add 4 → 3，PHI 3 → 1；两次 output 使用同一 PHI |
+| 4 | add 7 → 4 |
+| 5 | add 8 → 6，PHI 7 → 5 |
+| 6 | GEP 7 → 6，call 7 → 6 |
+| 7 | sdiv 5 → 4，call 14 → 11，PHI 10 → 4；结果复用同一 PHI |
+| 8 | add 40 → 37，mul 14 → 11，GEP 34 → 33，call 49 → 48 |
+
+旧 performance 两例执行输出 **2/2** 正确；没有测量时间，不提供加速结论。
 
 也可以 `sh tests/5-opt/eval_lab5.sh ...`。默认用本机构建的编译器和运行库，
 默认输出放在忽略的 `tests/5-opt/output/`，脚本可从任何工作目录调用。

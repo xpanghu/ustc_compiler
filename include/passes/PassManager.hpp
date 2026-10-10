@@ -59,20 +59,19 @@ public:
     void add_pass(Args&&... args)
     {
         static_assert(std::is_base_of_v<TransformPass, PassType>, "Pass must derive from TransformPass");
-        passes_.emplace_back(new PassType(m_, std::forward<Args>(args)...));
+        passes_.emplace_back(std::make_unique<PassType>(m_, std::forward<Args>(args)...));
     }
 
     void run()
     {
         for (auto& pass : passes_) {
             pass->run();
-            delete pass;
-            pass = nullptr;
+            pass.reset();
         }
     }
 
 private:
     // 它们会被顺序运行
-    std::vector<TransformPass*> passes_;
+    std::vector<std::unique_ptr<TransformPass>> passes_;
     Module* m_;
 };

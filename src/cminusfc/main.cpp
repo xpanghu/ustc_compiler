@@ -74,20 +74,6 @@ int main(int argc, char** argv) {
         ast.run_visitor(builder);
         m = builder.getModule();
 
-        // TODO(Lab5): remove this preflight when GVN's algorithm is complete.
-        // The scaffold rejects execution before any pass/output is created;
-        // PassManager currently owns raw pointers and is not exception-safe.
-        if (config.gvn) {
-            try {
-                GVN preflight(m, config.dump_json);
-                preflight.run();
-            } catch (const std::runtime_error &error) {
-                std::cerr << "[ERR] " << error.what() << '\n';
-                delete m;
-                return 1;
-            }
-        }
-
         PassManager PM(m);
         // optimization 
         if (config.mem2reg) {
@@ -107,7 +93,13 @@ int main(int argc, char** argv) {
             PM.add_pass<LoopInvariantCodeMotion>();
             PM.add_pass<DeadCode>(false);
         }
-        PM.run();
+        try {
+            PM.run();
+        } catch (const std::exception &error) {
+            std::cerr << "[ERR] " << error.what() << '\n';
+            delete m;
+            return 1;
+        }
 
         std::ofstream output_stream(config.output_file);
         if (config.emitllvm) {
