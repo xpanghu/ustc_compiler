@@ -2,3 +2,4 @@
 # add_subdirectory("3-codegen/warmup")
 add_subdirectory("4-opt")
 add_subdirectory("5-opt")
+add_subdirectory("backend")

@@ -4,6 +4,7 @@
 #include "ast.hpp"
 #include "cminusf_builder.hpp"
 #include "CodeGen.hpp"
+#include "MachineCodeGen.hpp"
 #include "PassManager.hpp"
 #include "DeadCode.hpp"
 #include "Mem2Reg.hpp"
@@ -34,6 +35,12 @@ struct Config {
     bool const_prop{ false };
     bool gvn{ false };
     bool dump_json{ false };
+    string backend{ "legacy" };
+    string isel{ "baseline" };
+    bool backend_explicit{ false };
+    bool isel_explicit{ false };
+    bool dump_mir{ false };
+    bool lab4_metrics{ false };
 
     Config(int argc, char** argv) : argc(argc), argv(argv) {
         parse_cmd_line();
@@ -101,6 +108,44 @@ int main(int argc, char** argv) {
             return 1;
         }
 
+        if (config.emitasm && config.backend == "mir") {
+            try {
+                machine::Options options;
+                options.selection = config.isel == "greedy" ? machine::SelectionMode::Greedy
+                                                             : machine::SelectionMode::Baseline;
+                options.lab4_metrics = config.lab4_metrics;
+                auto result = machine::generate(*m, options);
+                // Complete all stages before opening artifacts, including the LLVM sidecar.
+                auto write = [](const std::filesystem::path &path, const string &text) {
+                    std::ofstream stream(path);
+                    stream << text;
+                    stream.close();
+                    if (!stream)
+                        throw std::runtime_error("cannot write backend output: " + path.string());
+                };
+                write(config.output_file, result.assembly);
+                auto path = config.output_file;
+                path.replace_extension(".ll");
+                write(path, m->print());
+                if (config.dump_mir) {
+                    path.replace_extension(".selected.mir");
+                    write(path, result.selected);
+                    path = config.output_file;
+                    path.replace_extension(".prera.mir");
+                    write(path, result.prera);
+                    path = config.output_file;
+                    path.replace_extension(".final.mir");
+                    write(path, result.final);
+                }
+            } catch (const std::exception &error) {
+                std::cerr << "[ERR] " << error.what() << '\n';
+                delete m;
+                return 1;
+            }
+            delete m;
+            return 0;
+        }
+
         std::ofstream output_stream(config.output_file);
         if (config.emitllvm) {
             auto abs_path = std::filesystem::canonical(config.input_file);
@@ -165,6 +210,20 @@ void Config::parse_cmd_line() {
         else if (argv[i] == "-dump-json"s) {
             dump_json = true;
         }
+        else if (string(argv[i]).rfind("-backend=", 0) == 0) {
+            backend = string(argv[i]).substr(9);
+            backend_explicit = true;
+        }
+        else if (string(argv[i]).rfind("-isel=", 0) == 0) {
+            isel = string(argv[i]).substr(6);
+            isel_explicit = true;
+        }
+        else if (argv[i] == "-dump-mir"s) {
+            dump_mir = true;
+        }
+        else if (argv[i] == "-lab4-metrics"s) {
+            lab4_metrics = true;
+        }
         else {
             if (input_file.empty()) {
                 input_file = argv[i];
@@ -187,6 +246,18 @@ void Config::check() {
     }
     if (emitllvm and emitasm) {
         print_err("emit llvm and emit asm both set");
+    }
+    if (backend != "legacy" && backend != "mir") {
+        print_err("unknown backend: " + backend);
+    }
+    if (isel != "baseline" && isel != "greedy") {
+        print_err("unknown instruction selection mode: " + isel);
+    }
+    if ((backend_explicit || isel_explicit || dump_mir || lab4_metrics) && (!emitasm || emitast)) {
+        print_err("backend options require -S");
+    }
+    if (backend != "mir" && (isel_explicit || dump_mir || lab4_metrics)) {
+        print_err("isel, dump-mir and lab4-metrics require backend=mir");
     }
     if (not emitllvm and not emitasm and not emitast) {
         print_err("not supported: generate executable file directly");
@@ -218,6 +289,7 @@ void Config::print_help() const {
     std::cout << "Usage: " << exe_name
         << " [-h|--help] [-o <target-file>] [-emit-llvm|-S|-emit-ast]"
         " [-mem2reg] [-const-prop] [-gvn] [-dump-json] [-licm]"
+        " [-backend=legacy|mir] [-isel=baseline|greedy] [-dump-mir] [-lab4-metrics]"
         " <input-file>"
         << std::endl;
     exit(0);
