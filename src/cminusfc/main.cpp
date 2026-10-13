@@ -37,8 +37,10 @@ struct Config {
     bool dump_json{ false };
     string backend{ "legacy" };
     string isel{ "baseline" };
+    string regalloc{ "stack" };
     bool backend_explicit{ false };
     bool isel_explicit{ false };
+    bool regalloc_explicit{ false };
     bool dump_mir{ false };
     bool lab4_metrics{ false };
 
@@ -114,7 +116,10 @@ int main(int argc, char** argv) {
                 options.selection = config.isel == "greedy" ? machine::SelectionMode::Greedy
                                                              : machine::SelectionMode::Baseline;
                 options.lab4_metrics = config.lab4_metrics;
+                options.allocation = config.regalloc == "linear" ? machine::AllocationMode::Linear
+                                                                  : machine::AllocationMode::Stack;
                 auto result = machine::generate(*m, options);
+                const auto llvm = m->print();
                 // Complete all stages before opening artifacts, including the LLVM sidecar.
                 auto write = [](const std::filesystem::path &path, const string &text) {
                     std::ofstream stream(path);
@@ -126,7 +131,7 @@ int main(int argc, char** argv) {
                 write(config.output_file, result.assembly);
                 auto path = config.output_file;
                 path.replace_extension(".ll");
-                write(path, m->print());
+                write(path, llvm);
                 if (config.dump_mir) {
                     path.replace_extension(".selected.mir");
                     write(path, result.selected);
@@ -134,8 +139,16 @@ int main(int argc, char** argv) {
                     path.replace_extension(".prera.mir");
                     write(path, result.prera);
                     path = config.output_file;
+                    path.replace_extension(".allocated.mir");
+                    write(path, result.allocated);
+                    path = config.output_file;
                     path.replace_extension(".final.mir");
                     write(path, result.final);
+                    if (config.regalloc == "linear") {
+                        path = config.output_file;
+                        path.replace_extension(".regalloc.txt");
+                        write(path, result.regalloc);
+                    }
                 }
             } catch (const std::exception &error) {
                 std::cerr << "[ERR] " << error.what() << '\n';
@@ -218,6 +231,10 @@ void Config::parse_cmd_line() {
             isel = string(argv[i]).substr(6);
             isel_explicit = true;
         }
+        else if (string(argv[i]).rfind("-regalloc=", 0) == 0) {
+            regalloc = string(argv[i]).substr(10);
+            regalloc_explicit = true;
+        }
         else if (argv[i] == "-dump-mir"s) {
             dump_mir = true;
         }
@@ -252,6 +269,12 @@ void Config::check() {
     }
     if (isel != "baseline" && isel != "greedy") {
         print_err("unknown instruction selection mode: " + isel);
+    }
+    if (regalloc != "stack" && regalloc != "linear") {
+        print_err("unknown register allocation mode: " + regalloc);
+    }
+    if (regalloc_explicit && (!emitasm || emitast || backend != "mir")) {
+        print_err("regalloc requires -S -backend=mir");
     }
     if ((backend_explicit || isel_explicit || dump_mir || lab4_metrics) && (!emitasm || emitast)) {
         print_err("backend options require -S");
@@ -289,7 +312,8 @@ void Config::print_help() const {
     std::cout << "Usage: " << exe_name
         << " [-h|--help] [-o <target-file>] [-emit-llvm|-S|-emit-ast]"
         " [-mem2reg] [-const-prop] [-gvn] [-dump-json] [-licm]"
-        " [-backend=legacy|mir] [-isel=baseline|greedy] [-dump-mir] [-lab4-metrics]"
+        " [-backend=legacy|mir] [-isel=baseline|greedy] [-regalloc=stack|linear]"
+        " [-dump-mir] [-lab4-metrics]"
         " <input-file>"
         << std::endl;
     exit(0);

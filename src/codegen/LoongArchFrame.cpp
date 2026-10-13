@@ -66,6 +66,17 @@ std::string label(const MachineFunction &function, BlockId block) {
 } // namespace
 
 void lower_frame(MachineFunction &function) {
+    auto saved_registers = function.used_callee_saved;
+    std::sort(saved_registers.begin(), saved_registers.end());
+    saved_registers.erase(std::unique(saved_registers.begin(), saved_registers.end()),
+                          saved_registers.end());
+    std::vector<std::pair<PReg, unsigned>> saves;
+    for (auto reg : saved_registers) {
+        saves.emplace_back(reg, function.frame_objects.size());
+        function.frame_objects.push_back(
+            {reg.cls == RegClass::FPR ? ValueKind::F32 : ValueKind::Ptr64, 8, 8,
+             FramePurpose::SavedRegister});
+    }
     uint64_t used = 16; // Saved ra and old fp, addressed relative to incoming sp.
     for (auto &object : function.frame_objects) {
         if (!object.alignment || (object.alignment & (object.alignment - 1)))
@@ -135,6 +146,10 @@ void lower_frame(MachineFunction &function) {
     memory(prologue, {Opcode::ST_D,
                       {O::preg(gpr(22)), O::preg(gpr(3)), O::immediate(function.frame_size - 16)}});
     address(prologue, gpr(22), gpr(3), static_cast<int64_t>(function.frame_size));
+    for (const auto &[reg, frame] : saves)
+        memory(prologue, {reg.cls == RegClass::FPR ? Opcode::FST_D : Opcode::ST_D,
+                          {O::preg(reg), O::preg(gpr(22)),
+                           O::immediate(function.frame_objects.at(frame).offset)}});
     auto &entry = function.blocks.front().instructions;
     entry.insert(entry.begin(), prologue.begin(), prologue.end());
     std::vector<O> return_operands;
@@ -143,16 +158,19 @@ void lower_frame(MachineFunction &function) {
             O::preg(*function.return_type == ValueKind::F32 ? fpr(0) : gpr(4)));
     else if (function.name == "main")
         return_operands.push_back(O::preg(gpr(4)));
-    function.blocks.push_back(
-        {exit,
-         "epilogue",
-         {{Opcode::LD_D, {O::preg(gpr(1), RegRole::Def), O::preg(gpr(22)), O::immediate(-8)}},
-          {Opcode::LD_D, {O::preg(gpr(20), RegRole::Def), O::preg(gpr(22)), O::immediate(-16)}},
-          {Opcode::OR, {O::preg(gpr(3), RegRole::Def), O::preg(gpr(22)), O::preg(gpr(0))}},
-          {Opcode::OR, {O::preg(gpr(22), RegRole::Def), O::preg(gpr(20)), O::preg(gpr(0))}},
-          {Opcode::RET, return_operands}},
-         {},
-         {}});
+    std::vector<MachineInstr> epilogue;
+    for (const auto &[reg, frame] : saves)
+        memory(epilogue, {reg.cls == RegClass::FPR ? Opcode::FLD_D : Opcode::LD_D,
+                          {O::preg(reg, RegRole::Def), O::preg(gpr(22)),
+                           O::immediate(function.frame_objects.at(frame).offset)}});
+    epilogue.insert(
+        epilogue.end(),
+        {{Opcode::LD_D, {O::preg(gpr(1), RegRole::Def), O::preg(gpr(22)), O::immediate(-8)}},
+         {Opcode::LD_D, {O::preg(gpr(20), RegRole::Def), O::preg(gpr(22)), O::immediate(-16)}},
+         {Opcode::OR, {O::preg(gpr(3), RegRole::Def), O::preg(gpr(22)), O::preg(gpr(0))}},
+         {Opcode::OR, {O::preg(gpr(22), RegRole::Def), O::preg(gpr(20)), O::preg(gpr(0))}},
+         {Opcode::RET, return_operands}});
+    function.blocks.push_back({exit, "epilogue", std::move(epilogue), {}, {}});
     rebuild_cfg(function);
 }
 

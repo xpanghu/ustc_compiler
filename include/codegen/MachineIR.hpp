@@ -6,10 +6,12 @@
 class Value;
 namespace machine {
 enum class SelectionMode { Baseline, Greedy };
-enum class VerifyStage { Selected, PreRA, Final };
+enum class AllocationMode { Stack, Linear };
+enum class VerifyStage { Selected, PreRA, Allocated, Final };
 struct Options {
     SelectionMode selection = SelectionMode::Baseline;
     bool lab4_metrics = false;
+    AllocationMode allocation = AllocationMode::Stack;
 };
 enum class ValueKind { I1, I32, Ptr64, F32 };
 enum class RegClass { GPR, FPR, FCC };
@@ -92,10 +94,12 @@ enum class Opcode {
     LD_W,
     LD_D,
     FLD_S,
+    FLD_D,
     ST_B,
     ST_W,
     ST_D,
     FST_S,
+    FST_D,
     B,
     BNEZ,
     BEQ,
@@ -145,6 +149,8 @@ RegClass reg_class(ValueKind kind);
 std::string register_name(PReg reg);
 const std::vector<PReg> &reserved_scratch();
 const std::vector<PReg> &caller_saved();
+const std::vector<PReg> &allocatable_registers(RegClass cls);
+bool is_callee_saved(PReg reg);
 enum class FramePurpose { Alloca, Spill, SavedRegister };
 struct FrameObject {
     ValueKind kind = ValueKind::I32;
@@ -167,6 +173,7 @@ struct MachineFunction {
     std::vector<ValueKind> parameter_types;
     std::optional<ValueKind> return_type;
     uint64_t frame_size = 0;
+    std::vector<PReg> used_callee_saved;
     VReg new_vreg(ValueKind type) {
         vreg_types.push_back(type);
         return vreg_types.size() - 1;

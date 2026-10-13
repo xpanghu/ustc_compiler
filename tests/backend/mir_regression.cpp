@@ -897,8 +897,15 @@ static void emit_interop(const std::string &directory) {
                            call_bit_block);
     std::filesystem::create_directories(directory);
     std::ofstream(directory + "/interop.ll") << ir.print();
-    std::ofstream(directory + "/interop.baseline.s") << generate(ir, {}).assembly;
-    std::ofstream(directory + "/interop.greedy.s") << generate(ir, greedy_options()).assembly;
+    for (auto mode : {SelectionMode::Baseline, SelectionMode::Greedy}) {
+        Options options;
+        options.selection = mode;
+        auto stem =
+            directory + (mode == SelectionMode::Baseline ? "/interop.baseline" : "/interop.greedy");
+        std::ofstream(stem + ".s") << generate(ir, options).assembly;
+        options.allocation = AllocationMode::Linear;
+        std::ofstream(stem + ".linear.s") << generate(ir, options).assembly;
+    }
 }
 namespace backend_regression {
 void stack();

@@ -1,2 +1,4 @@
 add_executable(test_machine_codegen mir_regression.cpp backend_pipeline_regression.cpp)
 target_link_libraries(test_machine_codegen PRIVATE codegen IR_lib common)
+add_executable(test_register_allocation regalloc_regression.cpp)
+target_link_libraries(test_register_allocation PRIVATE codegen IR_lib common)

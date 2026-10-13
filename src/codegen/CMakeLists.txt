@@ -3,6 +3,8 @@ add_library(
     CodeGen.cpp
     Register.cpp
     MachineIR.cpp
+    MachineLiveness.cpp
+    LinearScanAllocator.cpp
     LoongArchISel.cpp
     MachineLowering.cpp
     StackAllocator.cpp

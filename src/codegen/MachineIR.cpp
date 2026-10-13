@@ -63,6 +63,34 @@ const std::vector<PReg> &caller_saved() {
     }();
     return r;
 }
+const std::vector<PReg> &allocatable_registers(RegClass cls) {
+    static const auto gprs = [] {
+        std::vector<PReg> regs;
+        for (unsigned i = 15; i <= 19; ++i)
+            regs.push_back(gpr(i));
+        for (unsigned i = 4; i <= 11; ++i)
+            regs.push_back(gpr(i));
+        for (unsigned i = 23; i <= 31; ++i)
+            regs.push_back(gpr(i));
+        return regs;
+    }();
+    static const auto fprs = [] {
+        std::vector<PReg> regs;
+        for (unsigned i = 11; i <= 23; ++i)
+            regs.push_back(fpr(i));
+        for (unsigned i = 0; i <= 7; ++i)
+            regs.push_back(fpr(i));
+        for (unsigned i = 24; i <= 31; ++i)
+            regs.push_back(fpr(i));
+        return regs;
+    }();
+    static const std::vector<PReg> empty;
+    return cls == RegClass::GPR ? gprs : cls == RegClass::FPR ? fprs : empty;
+}
+bool is_callee_saved(PReg reg) {
+    return reg.index <= 31 && ((reg.cls == RegClass::GPR && reg.index >= 23) ||
+                               (reg.cls == RegClass::FPR && reg.index >= 24));
+}
 std::string register_name(PReg p) {
     if (p.cls == RegClass::FCC)
         return "$fcc" + std::to_string(p.index);
@@ -126,10 +154,12 @@ const MachineInstrDesc &descriptor(Opcode op) {
         M(LD_W, true, false);
         M(LD_D, true, false);
         M(FLD_S, true, false);
+        M(FLD_D, true, false);
         M(ST_B, false, true);
         M(ST_W, false, true);
         M(ST_D, false, true);
         M(FST_S, false, true);
+        M(FST_D, false, true);
 #define B(O, N) add(Opcode::O, #O, N, N, false, false, false, true)
         B(B, 1);
         B(BNEZ, 2);
@@ -192,13 +222,13 @@ const MachineInstrDesc &descriptor(Opcode op) {
         t.at(Opcode::MOVCF2GR).operands = {gd, {F::FCC, RegRole::Use}};
         t.at(Opcode::MOVGR2FR_W).operands = {fd, gu};
         t.at(Opcode::MOVFR2GR_S).operands = {gd, fu};
-        for (auto o : {Opcode::LD_B_U, Opcode::LD_W, Opcode::LD_D, Opcode::FLD_S, Opcode::ST_B,
-                       Opcode::ST_W, Opcode::ST_D, Opcode::FST_S}) {
+        for (auto o : {Opcode::LD_B_U, Opcode::LD_W, Opcode::LD_D, Opcode::FLD_S, Opcode::FLD_D,
+                       Opcode::ST_B, Opcode::ST_W, Opcode::ST_D, Opcode::FST_S, Opcode::FST_D}) {
             auto &d = t.at(o);
-            d.operands = {o == Opcode::FLD_S   ? fd
-                          : o == Opcode::FST_S ? fu
-                          : d.may_load         ? gd
-                                               : gu,
+            d.operands = {(o == Opcode::FLD_S || o == Opcode::FLD_D)   ? fd
+                          : (o == Opcode::FST_S || o == Opcode::FST_D) ? fu
+                          : d.may_load                                 ? gd
+                                                                       : gu,
                           {F::Address, RegRole::Use},
                           {F::Signed12}};
         }
@@ -250,6 +280,10 @@ static bool is_branch(Opcode o) {
 }
 static std::set<BlockId> block_set(const std::vector<BlockId> &v) { return {v.begin(), v.end()}; }
 void verify(const MachineModule &m, VerifyStage stage) {
+    const bool after_lowering = stage == VerifyStage::PreRA || stage == VerifyStage::Allocated ||
+                                stage == VerifyStage::Final;
+    const bool no_vregs = stage == VerifyStage::Allocated || stage == VerifyStage::Final;
+    const bool no_frame_or_pseudos = stage == VerifyStage::Final;
     for (const auto &f : m.functions) {
         auto fail = [&](BlockId b, size_t n, const std::string &s) {
             throw std::runtime_error("MIR " + f.name + " bb" + std::to_string(b) + " instruction " +
@@ -273,11 +307,10 @@ void verify(const MachineModule &m, VerifyStage stage) {
                 auto bad = [&](const std::string &s) { fail(b.id, n, s); };
                 if (i.operands.size() < d.min_operands || i.operands.size() > d.max_operands)
                     bad("wrong operand count for " + std::string(d.name));
-                if (stage == VerifyStage::Final && d.pseudo)
+                if (no_frame_or_pseudos && d.pseudo)
                     bad("unexpanded pseudo " + std::string(d.name));
-                if (stage == VerifyStage::PreRA &&
-                    (i.opcode == Opcode::PHI || i.opcode == Opcode::ARG ||
-                     i.opcode == Opcode::HIGH_CALL || i.opcode == Opcode::RETURN))
+                if (after_lowering && (i.opcode == Opcode::PHI || i.opcode == Opcode::ARG ||
+                                       i.opcode == Opcode::HIGH_CALL || i.opcode == Opcode::RETURN))
                     bad("high-level pseudo after lowering");
                 if (termination &&
                     !(is_branch(i.opcode) && is_branch(b.instructions[n - 1].opcode) &&
@@ -294,8 +327,9 @@ void verify(const MachineModule &m, VerifyStage stage) {
                 };
                 for (const auto &o : i.operands) {
                     if (o.kind == OperandKind::VReg) {
-                        if (stage == VerifyStage::Final)
-                            bad("virtual register in Final");
+                        if (no_vregs)
+                            bad("virtual register in " +
+                                std::string(stage == VerifyStage::Final ? "Final" : "Allocated"));
                         if (o.id >= f.vreg_types.size())
                             bad("unknown VReg");
                         if (o.is_def() && stage == VerifyStage::Selected &&
@@ -308,7 +342,7 @@ void verify(const MachineModule &m, VerifyStage stage) {
                         o.reg.index >= (o.reg.cls == RegClass::FCC ? 8u : 32u))
                         bad("physical register out of range");
                     if (o.kind == OperandKind::FrameIndex &&
-                        (stage == VerifyStage::Final || o.id >= f.frame_objects.size()))
+                        (no_frame_or_pseudos || o.id >= f.frame_objects.size()))
                         bad("invalid or residual FrameIndex");
                     if (o.kind == OperandKind::Block) {
                         if (!ids.count(o.id))
@@ -377,6 +411,9 @@ void verify(const MachineModule &m, VerifyStage stage) {
                     }
                 }
                 auto o = i.opcode;
+                if ((o == Opcode::FLD_D || o == Opcode::FST_D) &&
+                    i.operands[0].kind != OperandKind::PReg)
+                    bad("full-width floating save/restore requires a physical FPR");
                 auto typed = [&](unsigned k, ValueKind expected) {
                     const auto &operand = i.operands.at(k);
                     if (operand.kind == OperandKind::VReg &&
