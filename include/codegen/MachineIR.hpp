@@ -7,7 +7,6 @@ class Value;
 namespace machine {
 enum class SelectionMode { Baseline, Greedy };
 enum class AllocationMode { Stack, Linear };
-enum class VerifyStage { Selected, PreRA, Allocated, Final };
 struct Options {
     SelectionMode selection = SelectionMode::Baseline;
     bool lab4_metrics = false;
@@ -115,34 +114,11 @@ struct MachineInstr {
     std::vector<MachineOperand> operands;
     const Value *source = nullptr;
 };
-// Fixed constraints are shared by selection, verification, and later allocators.
-// PHI pairs and CALL signature-dependent operands receive additional verification.
-enum class OperandForm {
-    Register,
-    GPR,
-    FPR,
-    FCC,
-    Immediate,
-    Signed12,
-    Unsigned12,
-    Signed20,
-    Block,
-    Symbol,
-    FrameIndex,
-    Address
-};
-struct OperandConstraint {
-    OperandForm form;
-    RegRole role = RegRole::None;
-};
 struct MachineInstrDesc {
     const char *name;
-    unsigned min_operands;
-    unsigned max_operands;
-    bool may_load = false, may_store = false, call = false, terminator = false, pseudo = false;
+    bool may_load = false, may_store = false, call = false, terminator = false;
     std::vector<PReg> implicit_uses, implicit_defs, clobbers;
     std::string mnemonic;
-    std::vector<OperandConstraint> operands;
 };
 const MachineInstrDesc &descriptor(Opcode opcode);
 RegClass reg_class(ValueKind kind);
@@ -193,6 +169,5 @@ struct MachineModule {
     std::vector<MachineGlobal> globals;
 };
 void rebuild_cfg(MachineFunction &function);
-void verify(const MachineModule &module, VerifyStage stage);
 std::string dump(const MachineModule &module);
 } // namespace machine

@@ -118,7 +118,6 @@ void frame() {
             partial = true;
         }
     require(partial, "wide constant test never exercised LU32I_D");
-    verify(MachineModule{{wide}, {}}, VerifyStage::Final);
     for (unsigned total : {16u, 2048u, 2064u}) {
         MachineFunction exact;
         exact.name = "boundary";
@@ -127,7 +126,6 @@ void frame() {
             exact.frame_objects.push_back({ValueKind::I32, total - 16, 16, FramePurpose::Alloca});
         lower_frame(exact);
         require(exact.frame_size == total, "boundary fixture has wrong frame size");
-        verify(MachineModule{{exact}, {}}, VerifyStage::Final);
         bool negative_boundary = false, positive_boundary = false;
         for (const auto &i : exact.blocks[0].instructions)
             if (i.opcode == Opcode::ADDI_D) {
@@ -149,7 +147,6 @@ void frame() {
                     f.blocks.front().instructions.front().opcode == Opcode::LU12I_W,
                 "stack adjustment does not precede saved registers");
         MachineModule m{{f}, {}};
-        verify(m, VerifyStage::Final);
         for (const auto &b : f.blocks)
             for (const auto &i : b.instructions) {
                 for (const auto &o : i.operands)

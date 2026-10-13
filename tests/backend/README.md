@@ -23,11 +23,11 @@ MIR 默认关闭 Lab4 插桩；显式加 `-lab4-metrics` 可生成实际度量�
 
 ```text
 LightIR
-  → select → Selected verifier / snapshot
-  → PHI、ABI、metrics lowering → PreRA verifier / snapshot
-  → stack 或 linear allocation → Allocated verifier / snapshot
+  → select → Selected snapshot
+  → PHI、ABI、metrics lowering → PreRA snapshot
+  → stack 或 linear allocation → Allocated snapshot
   → frame lowering
-  → Final verifier / snapshot → assembly printer
+  → Final snapshot → assembly printer
 ```
 
 - 值类型：I1、I32、Ptr64、F32。I1 保持 0/1，用户内存占 1 字节、spill 占 4 字节；I32 运算保持低 32 位的符号扩展表示；浮点常量按位保存。
@@ -36,7 +36,7 @@ LightIR
 - PHI 在机器层按并行拷贝语义消除；多后继前驱使用对应边块，循环交换和三值环通过显式临时值解决，输入 LightIR 不被改写。
 - 全栈分配为实际保留的 VReg 分配 home；普通指令先 reload 所有 use，再执行并 spill def，读写操作数同时建模。保留 `$t0..$t2`、`$ft0..$ft2`；`$t8` 专用于地址和大偏移展开。
 - 栈帧按 16 字节对齐，先分配空间再保存 ra/fp；大帧、FrameIndex、常量及 COPY 均在 Final 之前展开。printer 不隐藏 spill 或大偏移处理。`LA_LOCAL` 保留为目标汇编器伪指令。
-- verifier 检查操作数、类型、use/def、调用 clobber、CFG、Selected SSA/支配关系、PreRA 可用定义及 Final 残留伪指令。超出分支编码范围明确报错，尚未实现长分支 relaxation。
+- 后端不再提供独立 MIR / 分配结果 verifier，也不再承诺诊断任意手工构造的非法 MIR；保留生成阶段的局部错误处理。分支距离不再由编译器提前检查，长分支 relaxation 仍不支持。
 
 贪心规则先逆序规划消费者，再按原顺序输出。完整匹配成功后才提交 covered 标记，只吸收同块、单用途的纯节点，遇到 load/store/call 屏障或共享值时回退：
 
@@ -52,7 +52,9 @@ build/test_machine_codegen all
 build/test_register_allocation all
 ```
 
-可单独运行 `representation`、`verifier`、`baseline`、`alloca`、`phi`、`calls`、`metrics`、`stack`、`frame`、`printer`、`immediates`、`branches`、`addresses` 分组。`alloca` 构造循环分配并保留前次指针，检查 baseline/greedy 及 metrics 开/关均拒绝该输入且诊断包含函数和块。`emit-interop DIRECTORY` 另行生成供 C 互调测试使用的 LLVM 和 baseline/greedy × stack/linear 四种 MIR 汇编。
+可单独运行 `representation`、`baseline`、`alloca`、`phi`、`calls`、`metrics`、`stack`、`frame`、`printer`、`immediates`、`branches`、`addresses` 分组。`alloca` 构造循环分配并保留前次指针，检查 baseline/greedy 及 metrics 开/关均拒绝该输入且诊断包含函数和块。`emit-interop DIRECTORY` 另行生成供 C 互调测试使用的 LLVM 和 baseline/greedy × stack/linear 四种 MIR 汇编。
+
+已移除专门构造非法 MIR / 分配结果的 verifier 测试与 `verifier`、`verify` 分组；保留算法结果断言、scratch 冲突负例、LLVM verifier 和目标执行测试。支配性、路径定义、寄存器区间冲突不再由独立后端校验器检查。
 
 本次交叉工具链位于 `jianmu-dev` 容器：仓库挂载到 `/workspace`，`/workspace/build` 是独立构建卷，不能与 macOS 的同名目录二进制混用。
 

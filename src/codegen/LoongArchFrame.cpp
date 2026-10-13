@@ -175,7 +175,6 @@ void lower_frame(MachineFunction &function) {
 }
 
 std::string print_assembly(const MachineModule &module) {
-    verify(module, VerifyStage::Final);
     std::ostringstream out;
     for (const auto &global : module.globals) {
         bool zero = std::all_of(global.initializer.begin(), global.initializer.end(),

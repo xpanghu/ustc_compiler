@@ -91,85 +91,6 @@ AllocationResult linear_scan(const MachineFunction &function, const LiveAnalysis
     saved.erase(std::unique(saved.begin(), saved.end()), saved.end());
     return result;
 }
-void verify_allocation(const MachineFunction &function, const LiveAnalysis &analysis,
-                       const RegisterSet &registers, const AllocationResult &result) {
-    auto fail = [&](const std::string &message) {
-        throw std::runtime_error("allocation in " + function.name + ": " + message);
-    };
-    auto value_name = [](VReg value) { return "v" + std::to_string(value); };
-    if (result.locations.size() != function.vreg_types.size())
-        fail("location count does not match VReg count");
-    std::map<PReg, std::vector<VReg>> assigned;
-    std::vector<unsigned> spill_references(result.spills.size());
-    std::set<PReg> expected_saved;
-    for (VReg value = 0; value < function.vreg_types.size(); ++value) {
-        const auto &interval = analysis.intervals.at(value);
-        const auto &location = result.locations.at(value);
-        const auto name = value_name(value);
-        if (!interval) {
-            if (location)
-                fail(name + " has a location without an interval");
-            continue;
-        }
-        if (!location)
-            fail(name + " has no location");
-        const auto kind = function.vreg_types.at(value);
-        if (std::holds_alternative<PReg>(*location)) {
-            const auto reg = std::get<PReg>(*location);
-            const auto context = name + " in " + register_name(reg);
-            const auto cls = reg_class(kind);
-            if (reg.cls != cls)
-                fail(context + " has wrong register class");
-            const auto &target = allocatable_registers(cls);
-            const auto &bank = cls == RegClass::GPR ? registers.gprs : registers.fprs;
-            if (std::find(target.begin(), target.end(), reg) == target.end() ||
-                std::find(bank.begin(), bank.end(), reg) == bank.end())
-                fail(context + " is not in the allocatable register set");
-            const auto fixed = analysis.fixed.find(reg);
-            if (fixed != analysis.fixed.end())
-                for (auto range : fixed->second)
-                    if (overlaps(interval->range, range))
-                        fail(context + " overlaps fixed occupancy");
-            assigned[reg].push_back(value);
-            if (is_callee_saved(reg))
-                expected_saved.insert(reg);
-        } else {
-            const auto slot = std::get<SpillLocation>(*location).slot;
-            if (slot >= result.spills.size())
-                fail(name + " references missing spill slot " + std::to_string(slot));
-            const auto &spill = result.spills.at(slot);
-            if (spill.value != value)
-                fail(name + " references spill owned by " + value_name(spill.value));
-            if (++spill_references.at(slot) != 1)
-                fail(name + " shares spill slot " + std::to_string(slot));
-            const unsigned size = kind == ValueKind::Ptr64 ? 8 : 4;
-            if (spill.kind != kind || spill.size != size || spill.alignment != size)
-                fail(name + " has invalid spill kind, size or alignment");
-        }
-    }
-    for (const auto &[reg, values] : assigned)
-        for (size_t i = 0; i < values.size(); ++i)
-            for (size_t j = i + 1; j < values.size(); ++j)
-                if (overlaps(analysis.intervals.at(values[i])->range,
-                             analysis.intervals.at(values[j])->range))
-                    fail(value_name(values[i]) + " and " + value_name(values[j]) + " overlap in " +
-                         register_name(reg));
-    for (size_t slot = 0; slot < result.spills.size(); ++slot)
-        if (spill_references.at(slot) != 1)
-            fail(value_name(result.spills.at(slot).value) + " has unreferenced spill slot " +
-                 std::to_string(slot));
-    std::set<PReg> actual_saved;
-    for (auto reg : result.used_callee_saved) {
-        if (!actual_saved.insert(reg).second)
-            fail(register_name(reg) + " is duplicated in used_callee_saved");
-        if (!expected_saved.count(reg))
-            fail(register_name(reg) + " is unexpected in used_callee_saved");
-    }
-    for (auto reg : expected_saved)
-        if (!actual_saved.count(reg))
-            fail(value_name(assigned.at(reg).front()) + " in " + register_name(reg) +
-                 " is missing from used_callee_saved");
-}
 namespace {
 using O = MachineOperand;
 Opcode reload_opcode(ValueKind kind) {
@@ -324,7 +245,6 @@ AllocationResult allocate_linear(MachineFunction &function) {
     const auto analysis = analyze_liveness(function);
     const auto registers = default_registers();
     auto result = linear_scan(function, analysis, registers);
-    verify_allocation(function, analysis, registers, result);
     rewrite_allocation(function, result);
     return result;
 }

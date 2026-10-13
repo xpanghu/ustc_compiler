@@ -28,8 +28,6 @@ struct AllocationResult {
 };
 RegisterSet default_registers();
 AllocationResult linear_scan(const MachineFunction &, const LiveAnalysis &, const RegisterSet &);
-void verify_allocation(const MachineFunction &, const LiveAnalysis &, const RegisterSet &,
-                       const AllocationResult &);
 void rewrite_allocation(MachineFunction &, AllocationResult &);
 AllocationResult allocate_linear(MachineFunction &);
 std::string dump_allocation(const MachineFunction &, const LiveAnalysis &,

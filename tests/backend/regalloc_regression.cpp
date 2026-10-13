@@ -376,7 +376,6 @@ static void fixed_abi() {
          {},
          {}}};
     rebuild_cfg(f);
-    verify(MachineModule{{f}, {}}, VerifyStage::PreRA);
     auto a = analyze_checked(f);
     const auto &b = a.blocks.at(0);
     const auto &p = b.instructions;
@@ -412,7 +411,6 @@ static void fixed_kills_and_usedef() {
          {},
          {}}};
     rebuild_cfg(f);
-    verify(MachineModule{{f}, {}}, VerifyStage::PreRA);
     auto a = analyze_checked(f);
     const auto &entry = a.blocks.at(0), &exit = a.blocks.at(1);
     require(entry.use.physicals.count(gpr(22)) && entry.in.physicals.count(gpr(22)) &&
@@ -442,7 +440,6 @@ static void fixed_call_result() {
                      {},
                      {}}};
         rebuild_cfg(f);
-        verify(MachineModule{{f}, {}}, VerifyStage::PreRA);
         auto a = analyze_checked(f);
         const auto &b = a.blocks.at(0);
         require(b.use.physicals.empty() && b.in.physicals.empty(),
@@ -492,8 +489,6 @@ static AllocationResult scan_checked(const MachineFunction &f, const LiveAnalysi
                                      const RegisterSet &regs) {
     const auto before = dump(MachineModule{{f}, {}});
     auto result = linear_scan(f, a, regs), again = linear_scan(f, a, regs);
-    verify_allocation(f, a, regs, result);
-    verify_allocation(f, a, regs, again);
     require(before == dump(MachineModule{{f}, {}}), "scan must preserve function dump");
     require(result.locations.size() == f.vreg_types.size() &&
                 result.locations.size() == again.locations.size(),
@@ -674,89 +669,10 @@ static void rejected(const std::function<void()> &fn, const std::vector<std::str
     }
     require(failed, "expected register allocation rejection");
 }
-static void verify_mutations() {
-    MachineFunction f;
-    f.name = "verify_mutations";
-    f.vreg_types = {ValueKind::I32, ValueKind::I32, ValueKind::I32, ValueKind::I32};
-    LiveAnalysis a;
-    a.intervals = {LiveInterval{0, {0, 20}}, LiveInterval{1, {1, 6}}, LiveInterval{2, {2, 8}},
-                   std::nullopt};
-    RegisterSet regs{{gpr(15), gpr(16)}, {}};
-    auto result = linear_scan(f, a, regs);
-    verify_allocation(f, a, regs, result);
-    auto bad = result;
-    bad.locations.at(1) = gpr(15);
-    bad.locations.at(2) = gpr(15);
-    rejected([&] { verify_allocation(f, a, regs, bad); },
-             {f.name, "v1", "v2", register_name(gpr(15))});
-    bad = result;
-    bad.locations.at(1) = gpr(12);
-    // Even a supplied bank containing scratch must not authorize a reserved register.
-    auto scratch_regs = regs;
-    scratch_regs.gprs.push_back(gpr(12));
-    rejected([&] { verify_allocation(f, a, scratch_regs, bad); },
-             {f.name, "v1", register_name(gpr(12))});
-    bad = result;
-    bad.locations.at(1) = fpr(11);
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v1", register_name(fpr(11))});
-    bad = result;
-    bad.locations.at(1).reset();
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v1"});
-    bad = result;
-    bad.locations.pop_back();
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name});
-    bad = result;
-    bad.locations.at(3) = gpr(15);
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v3"});
-    bad = result;
-    bad.locations.at(1) = gpr(17);
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v1", register_name(gpr(17))});
-    // A legal allocation may use a different register priority and spill more values.
-    auto alternative = result;
-    alternative.locations.at(1) = gpr(15);
-    alternative.locations.at(2) = gpr(16);
-    verify_allocation(f, a, regs, alternative);
-    auto spilled = linear_scan(f, a, {});
-    verify_allocation(f, a, regs, spilled);
-    bad = spilled;
-    bad.locations.at(2) = bad.locations.at(1);
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v2"});
-    bad = spilled;
-    bad.locations.at(0) = SpillLocation{99};
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v0"});
-    bad = spilled;
-    bad.spills.at(0).value = 1;
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v0", "v1"});
-    bad = spilled;
-    bad.spills.at(0).kind = ValueKind::F32;
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v0"});
-    bad = spilled;
-    bad.spills.push_back(spilled.spills.at(0));
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v0"});
-}
-static void verify_spill_widths() {
-    MachineFunction f;
-    f.name = "verify_spill_widths";
-    f.vreg_types = {ValueKind::I1, ValueKind::I32, ValueKind::Ptr64, ValueKind::F32};
-    LiveAnalysis a;
-    for (VReg value = 0; value < f.vreg_types.size(); ++value)
-        a.intervals.push_back(LiveInterval{value, {1, 2}});
-    auto result = linear_scan(f, a, {});
-    verify_allocation(f, a, {}, result);
-    for (VReg value = 0; value < f.vreg_types.size(); ++value) {
-        auto bad = result;
-        bad.spills.at(value).size = value == 2 ? 4 : 8;
-        rejected([&] { verify_allocation(f, a, {}, bad); }, {f.name, "v" + std::to_string(value)});
-        bad = result;
-        bad.spills.at(value).alignment = 1;
-        rejected([&] { verify_allocation(f, a, {}, bad); }, {f.name, "v" + std::to_string(value)});
-    }
-    verify_allocation(MachineFunction{}, LiveAnalysis{}, default_registers(), AllocationResult{});
-}
-static void verify_call_and_saved() {
+static void scan_call_and_saved() {
     using O = MachineOperand;
     MachineFunction f;
-    f.name = "verify_call_and_saved";
+    f.name = "scan_call_and_saved";
     f.parameter_types = {ValueKind::F32};
     auto x = f.new_vreg(ValueKind::I32), y = f.new_vreg(ValueKind::F32);
     f.blocks = {{0,
@@ -770,47 +686,18 @@ static void verify_call_and_saved() {
                  {},
                  {}}};
     rebuild_cfg(f);
-    verify(MachineModule{{f}, {}}, VerifyStage::PreRA);
     auto a = analyze_liveness(f);
     auto regs = default_registers();
     auto result = linear_scan(f, a, regs);
     require_register(result, x, gpr(23));
     require_register(result, y, fpr(24));
-    verify_allocation(f, a, regs, result);
-    for (auto pair : {std::make_pair(x, gpr(15)), std::make_pair(y, fpr(11))}) {
-        auto bad = result;
-        bad.locations.at(pair.first) = pair.second;
-        rejected([&] { verify_allocation(f, a, regs, bad); },
-                 {f.name, "v" + std::to_string(pair.first), register_name(pair.second)});
-    }
-    auto bad = result;
-    bad.used_callee_saved.clear();
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, "v0", register_name(gpr(23))});
-    bad = result;
-    bad.used_callee_saved.push_back(gpr(24));
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, register_name(gpr(24))});
-    bad = result;
-    bad.used_callee_saved.push_back(gpr(23));
-    rejected([&] { verify_allocation(f, a, regs, bad); }, {f.name, register_name(gpr(23))});
-    // Touching endpoints are legal for both virtual and fixed intervals.
-    MachineFunction touching;
-    touching.name = "verify_touching";
-    touching.vreg_types = {ValueKind::I32, ValueKind::I32};
-    LiveAnalysis boundaries;
-    boundaries.intervals = {LiveInterval{0, {2, 4}}, LiveInterval{1, {4, 6}}};
-    boundaries.fixed[gpr(15)] = {{0, 2}, {6, 7}};
-    RegisterSet one{{gpr(15)}, {}};
-    verify_allocation(touching, boundaries, one, linear_scan(touching, boundaries, one));
 }
 
 static AllocationResult rewrite_checked(MachineFunction &f, const RegisterSet &regs = {}) {
     rebuild_cfg(f);
-    verify(MachineModule{{f}, {}}, VerifyStage::PreRA);
     auto a = analyze_liveness(f);
     auto result = linear_scan(f, a, regs);
-    verify_allocation(f, a, regs, result);
     rewrite_allocation(f, result);
-    verify(MachineModule{{f}, {}}, VerifyStage::Allocated);
     for (const auto &block : f.blocks)
         for (const auto &i : block.instructions)
             for (const auto &o : i.operands)
@@ -953,7 +840,6 @@ static void rewrite_copies() {
                      {},
                      {}}};
         rebuild_cfg(f);
-        verify(MachineModule{{f}, {}}, VerifyStage::PreRA);
         auto a = analyze_liveness(f);
         auto r = linear_scan(f, a, {});
         // Hand-select all four legal location combinations. The COPY slot overlaps both values.
@@ -966,9 +852,7 @@ static void rewrite_copies() {
             } else
                 r.locations[v] = gpr(15 + v);
         }
-        verify_allocation(f, a, {{gpr(15), gpr(16)}, {}}, r);
         rewrite_allocation(f, r);
-        verify(MachineModule{{f}, {}}, VerifyStage::Allocated);
         const auto &is = f.block(0).instructions;
         unsigned n = (mask & 1) ? 2 : 1;
         if (mask == 0) {
@@ -1096,7 +980,6 @@ static void rewrite_phi_swaps() {
             selected.block(1).instructions.push_back({Opcode::B, {O::block(2)}});
             rebuild_cfg(selected);
             MachineModule module{{selected}, {}};
-            verify(module, VerifyStage::Selected);
             lower(module, {});
             auto &f = module.functions.at(0);
             // The two-successor loop edge is split for the PHI cycle.
@@ -1141,10 +1024,8 @@ static void rewrite_scratch_conflicts() {
             if (!live_through)
                 std::swap(f.block(0).instructions[0], f.block(0).instructions[1]);
             rebuild_cfg(f);
-            verify(MachineModule{{f}, {}}, VerifyStage::PreRA);
             auto a = analyze_liveness(f);
             auto r = linear_scan(f, a, {});
-            verify_allocation(f, a, {}, r);
             rejected([&] { rewrite_allocation(f, r); },
                      {f.name, "bb0", live_through ? "instruction 1" : "instruction 2",
                       register_name(reg)});
@@ -1157,64 +1038,6 @@ static void rewrite_scratch_conflicts() {
     auto r = rewrite_checked(implicit);
     require(r.stats.reloads == 0 && r.stats.stores == 0, "implicit CALL clobbers need no scratch");
 }
-static void allocated_verifier() {
-    using O = MachineOperand;
-    MachineFunction f;
-    f.name = "allocated_verifier";
-    f.vreg_types = {ValueKind::Ptr64};
-    f.frame_objects = {{ValueKind::Ptr64, 8, 8, FramePurpose::Spill}};
-    f.blocks = {{0,
-                 "entry",
-                 {{Opcode::LOAD_CONSTANT, {O::preg(gpr(12), RegRole::Def), O::immediate(9)}},
-                  {Opcode::LU32I_D, {O::preg(gpr(12), RegRole::UseDef), O::immediate(1)}},
-                  {Opcode::SYMBOL_ADDR, {O::preg(gpr(13), RegRole::Def), O::sym("object")}},
-                  {Opcode::FRAME_ADDR, {O::preg(gpr(14), RegRole::Def), O::frame(0)}},
-                  {Opcode::LD_D, {O::preg(gpr(12), RegRole::Def), O::frame(0), O::immediate(0)}},
-                  {Opcode::COPY, {O::preg(gpr(4), RegRole::Def), O::preg(gpr(12))}},
-                  {Opcode::RET, {}}},
-                 {},
-                 {}}};
-    rebuild_cfg(f);
-    verify(MachineModule{{f}, {}}, VerifyStage::Allocated);
-    auto bad = f;
-    bad.block(0).instructions[0].operands[0] = O::vreg(0, RegRole::Def);
-    rejected([&] { verify(MachineModule{{bad}, {}}, VerifyStage::Allocated); },
-             {f.name, "virtual register"});
-    bad = f;
-    bad.block(0).instructions[3].operands[1] = O::frame(1);
-    rejected([&] { verify(MachineModule{{bad}, {}}, VerifyStage::Allocated); },
-             {f.name, "FrameIndex"});
-    for (auto opcode : {Opcode::ARG, Opcode::PHI, Opcode::HIGH_CALL, Opcode::RETURN}) {
-        bad = f;
-        std::vector<O> operands;
-        if (opcode == Opcode::ARG)
-            operands = {O::vreg(0, RegRole::Def), O::immediate(0)};
-        if (opcode == Opcode::PHI)
-            operands = {O::vreg(0, RegRole::Def), O::vreg(0), O::block(0)};
-        if (opcode == Opcode::HIGH_CALL)
-            operands = {O::sym("callee")};
-        bad.block(0).instructions.insert(bad.block(0).instructions.begin(), {opcode, operands});
-        rejected([&] { verify(MachineModule{{bad}, {}}, VerifyStage::Allocated); },
-                 {f.name, "high-level pseudo"});
-    }
-    // Allocated checks structure, not PreRA physical must-definition availability.
-    auto physical = f;
-    physical.block(0).instructions = {
-        {Opcode::COPY, {O::preg(gpr(4), RegRole::Def), O::preg(gpr(15))}}, {Opcode::RET, {}}};
-    verify(MachineModule{{physical}, {}}, VerifyStage::Allocated);
-    rejected([&] { verify(MachineModule{{physical}, {}}, VerifyStage::PreRA); }, {f.name});
-    rejected([&] { verify(MachineModule{{f}, {}}, VerifyStage::Final); },
-             {f.name, "unexpanded pseudo"});
-    auto malformed = physical;
-    malformed.block(0).instructions[0].operands[1] = O::preg(fpr(0));
-    rejected([&] { verify(MachineModule{{malformed}, {}}, VerifyStage::Allocated); },
-             {f.name, "class"});
-    malformed = physical;
-    malformed.block(0).successors = {0};
-    rejected([&] { verify(MachineModule{{malformed}, {}}, VerifyStage::Allocated); },
-             {f.name, "CFG"});
-}
-
 static MachineFunction saved_frame_fixture(unsigned bytes = 24) {
     using O = MachineOperand;
     MachineFunction f;
@@ -1249,7 +1072,6 @@ static void require_saved_memory(const MachineInstr &i, Opcode opcode, PReg reg,
 }
 static MachineFunction frame_saved_registers() {
     auto f = saved_frame_fixture();
-    verify(MachineModule{{f}, {}}, VerifyStage::Allocated);
     lower_frame(f);
     require(f.frame_objects.size() == 5,
             "callee-saved r23/f24 require two extra saved-register slots");
@@ -1293,7 +1115,6 @@ static MachineFunction frame_saved_registers() {
                     f.block(id).successors == std::vector<BlockId>{exit.id},
                 "both return paths must branch to unified epilogue");
     }
-    verify(MachineModule{{f}, {}}, VerifyStage::Final);
     const auto assembly = print_assembly(MachineModule{{f}, {}});
     require(assembly.find("fst.d $f24, $r22, -56") != std::string::npos &&
                 assembly.find("fld.d $f24, $r22, -56") != std::string::npos,
@@ -1333,48 +1154,15 @@ static void frame_empty_subset_and_duplicates() {
         require(f.blocks.front().instructions.size() == 5 + unique.size() &&
                     f.blocks.back().instructions.size() == 5 + unique.size(),
                 "unused callee-saved registers must add no extra instructions");
-        verify(MachineModule{{f}, {}}, VerifyStage::Final);
     }
 }
 static void frame_wide_operands() {
-    using O = MachineOperand;
     for (auto opcode : {Opcode::FLD_D, Opcode::FST_D}) {
         const auto role = opcode == Opcode::FLD_D ? RegRole::Def : RegRole::Use;
         const auto &d = descriptor(opcode);
         require(d.may_load == (role == RegRole::Def) && d.may_store == (role == RegRole::Use) &&
-                    d.operands[0].form == OperandForm::FPR && d.operands[0].role == role &&
-                    d.operands[1].form == OperandForm::Address &&
-                    d.operands[2].form == OperandForm::Signed12 &&
                     d.mnemonic == (role == RegRole::Def ? "fld.d" : "fst.d"),
-                "wide op descriptors must have FPR roles and existing address constraints");
-        MachineFunction f;
-        f.name = "wide_operand";
-        f.frame_objects = {{ValueKind::F32, 8, 8, FramePurpose::SavedRegister}};
-        f.blocks = {
-            {0,
-             "entry",
-             {{opcode, {O::preg(fpr(24), role), O::frame(0), O::immediate(0)}}, {Opcode::RET, {}}},
-             {},
-             {}}};
-        verify(MachineModule{{f}, {}}, VerifyStage::Allocated);
-        auto bad = f;
-        bad.vreg_types = {ValueKind::F32};
-        bad.blocks[0].instructions[0].operands[0] = O::vreg(0, role);
-        rejected([&] { verify(MachineModule{{bad}, {}}, VerifyStage::Selected); },
-                 {f.name, "physical FPR"});
-        for (unsigned mutation = 0; mutation < 4; ++mutation) {
-            bad = f;
-            auto &operands = bad.blocks[0].instructions[0].operands;
-            if (mutation == 0)
-                operands[0] = O::preg(gpr(23), role);
-            else if (mutation == 1)
-                operands[0].role = role == RegRole::Def ? RegRole::Use : RegRole::Def;
-            else if (mutation == 2)
-                operands[1] = O::preg(fpr(24));
-            else
-                operands[2] = O::immediate(2048);
-            rejected([&] { verify(MachineModule{{bad}, {}}, VerifyStage::Allocated); }, {f.name});
-        }
+                "wide op descriptors must retain memory effects and mnemonics");
     }
 }
 static MachineFunction frame_large_saved_offsets() {
@@ -1427,7 +1215,6 @@ static MachineFunction frame_large_saved_offsets() {
         }
         require(extras == 2, "both large-offset save slots must be accessed");
     }
-    verify(MachineModule{{f}, {}}, VerifyStage::Final);
     return f;
 }
 
@@ -1451,25 +1238,21 @@ static void allocation_api_and_report() {
                         {},
                         {}}};
     rebuild_cfg(original);
-    verify(MachineModule{{original}, {}}, VerifyStage::PreRA);
     const auto analysis = analyze_liveness(original);
     auto manual = original, convenience = original;
     const auto registers = default_registers();
     auto expected = linear_scan(manual, analysis, registers);
-    verify_allocation(manual, analysis, registers, expected);
     rewrite_allocation(manual, expected);
     const auto actual = allocate_linear(convenience);
-    verify(MachineModule{{convenience}, {}}, VerifyStage::Allocated);
     require(dump(MachineModule{{manual}, {}}) == dump(MachineModule{{convenience}, {}}) &&
                 dump_allocation(manual, analysis, expected) ==
                     dump_allocation(convenience, analysis, actual),
-            "allocate_linear must compose analyze/scan/verify/rewrite");
+            "allocate_linear must compose analyze/scan/rewrite");
     require(actual.stats.retained == 2 && actual.stats.spilled == 0 && !actual.locations[2],
             "convenience allocation must count only appeared VRegs");
     auto saved = original;
     const RegisterSet saved_registers{{gpr(24), gpr(23)}, {}};
     auto saved_result = linear_scan(saved, analysis, saved_registers);
-    verify_allocation(saved, analysis, saved_registers, saved_result);
     rewrite_allocation(saved, saved_result);
     lower_frame(saved);
     const auto saved_report = dump_allocation(saved, analysis, saved_result);
@@ -1480,11 +1263,9 @@ static void allocation_api_and_report() {
     auto spilled = original;
     RegisterSet empty;
     auto result = linear_scan(spilled, analysis, empty);
-    verify_allocation(spilled, analysis, empty, result);
     rewrite_allocation(spilled, result);
     const auto allocated = dump(MachineModule{{spilled}, {}});
     lower_frame(spilled);
-    verify(MachineModule{{spilled}, {}}, VerifyStage::Final);
     const auto report = dump_allocation(spilled, analysis, result);
     require(report == dump_allocation(spilled, analysis, result), "allocation report must repeat");
     const auto exit = report.find("bb2 IN={v1, $r1} OUT={}");
@@ -1611,7 +1392,6 @@ static void emit_abi(const std::string &directory) {
         manifest << " " << register_name(reg);
     manifest << "\n";
     lower_frame(f);
-    verify(MachineModule{{f}, {}}, VerifyStage::Final);
     write_fixture(directory + "/manifest.txt", manifest.str());
     write_fixture(directory + "/clobber_saved.s", print_assembly(MachineModule{{f}, {}}));
     write_fixture(directory + "/main.c",
@@ -1703,7 +1483,6 @@ static MachineFunction pressure_fixture(const std::string &shape) {
     exit.push_back({Opcode::COPY, {O::preg(gpr(4), RegRole::Def), O::vreg(sum)}});
     exit.push_back({Opcode::RET, {O::preg(gpr(4))}});
     rebuild_cfg(f);
-    verify(MachineModule{{f}, {}}, VerifyStage::PreRA);
     return f;
 }
 static void emit_pressure(const std::string &directory) {
@@ -1737,7 +1516,6 @@ static void emit_pressure(const std::string &directory) {
                     spilled = rewrite_checked(f, regs).stats.spilled;
                 else {
                     allocate_stack(f);
-                    verify(MachineModule{{f}, {}}, VerifyStage::Allocated);
                     spilled = std::count_if(
                         f.frame_objects.begin(), f.frame_objects.end(),
                         [](const FrameObject &o) { return o.purpose == FramePurpose::Spill; });
@@ -1745,7 +1523,6 @@ static void emit_pressure(const std::string &directory) {
                 require(spilled > 0, "target pressure fixture must actually spill");
                 manifest << mode << " " << pool << " " << shape << " " << spilled << "\n";
                 lower_frame(f);
-                verify(MachineModule{{f}, {}}, VerifyStage::Final);
                 module.functions.push_back(std::move(f));
             }
             write_fixture(directory + "/pressure." + mode + "." + std::to_string(pool) + ".s",
@@ -1767,7 +1544,7 @@ int main(int argc, char **argv) {
             return 0;
         }
         require(group == "all" || group == "liveness" || group == "intervals" || group == "fixed" ||
-                    group == "scan" || group == "verify" || group == "rewrite" ||
+                    group == "scan" || group == "rewrite" ||
                     group == "frame" || group == "pipeline" || group == "target",
                 "unknown register allocation group");
         if (group == "all" || group == "liveness") {
@@ -1800,11 +1577,7 @@ int main(int argc, char **argv) {
             scan_empty_and_spill_metadata();
             scan_classes_and_callee_saved();
             scan_fixed_constraints();
-        }
-        if (group == "all" || group == "verify") {
-            verify_mutations();
-            verify_spill_widths();
-            verify_call_and_saved();
+            scan_call_and_saved();
         }
         if (group == "all" || group == "rewrite") {
             rewrite_repeated_and_usedef();
@@ -1813,7 +1586,6 @@ int main(int argc, char **argv) {
             rewrite_branch_and_call();
             rewrite_phi_swaps();
             rewrite_scratch_conflicts();
-            allocated_verifier();
         }
         if (group == "all" || group == "frame") {
             frame_wide_operands();

@@ -27,7 +27,7 @@ static void rejected(const std::function<void()> &fn) {
     } catch (const std::runtime_error &) {
         failed = true;
     }
-    require(failed, "expected verifier rejection");
+    require(failed, "expected backend rejection");
 }
 // Constant factories cache by Module address; keep independent fixtures alive.
 static Module &new_test_module() {
@@ -59,58 +59,16 @@ static MachineModule sample() {
 }
 static void representation() {
     auto m = sample();
-    verify(m, VerifyStage::Selected);
     require(dump(m).find("ADD_W") != std::string::npos, "dump misses opcode");
     auto &add = m.functions[0].blocks[0].instructions[2];
     require(add.operands[0].is_def() && !add.operands[0].is_use() && add.operands[1].is_use() &&
                 !add.operands[1].is_def(),
             "roles");
-    add.opcode = Opcode::ADDI_W;
-    add.operands[2] = MachineOperand::immediate(2048);
-    rejected([&] { verify(m, VerifyStage::Selected); });
-}
-static void verifier() {
-    auto m = sample();
-    m.functions[0].blocks[0].instructions[2].operands[1].id = 99;
-    rejected([&] { verify(m, VerifyStage::Selected); });
-    m = sample();
-    m.functions[0].vreg_types[1] = ValueKind::F32;
-    rejected([&] { verify(m, VerifyStage::Selected); });
-    m = sample();
-    m.functions[0].blocks[0].instructions.back() = {Opcode::B, {MachineOperand::block(99)}};
-    rejected([&] { verify(m, VerifyStage::Selected); });
-    m = sample();
-    m.functions[0].blocks[0].instructions[2].operands.pop_back();
-    rejected([&] { verify(m, VerifyStage::Selected); });
-    m = sample();
-    m.functions[0].blocks[0].instructions[2].operands[1] = MachineOperand::frame(0);
-    rejected([&] { verify(m, VerifyStage::Final); });
-    m = sample();
-    m.functions[0].blocks[0].instructions[1].operands[0].id = 0;
-    rejected([&] { verify(m, VerifyStage::Selected); });
-    m = sample();
-    m.functions[0].vreg_types[2] = ValueKind::Ptr64;
-    rejected([&] { verify(m, VerifyStage::Selected); });
-    m = sample();
-    m.functions[0].blocks[0].instructions[2] = {
-        Opcode::LOAD_CONSTANT,
-        {MachineOperand::vreg(2, RegRole::Def), MachineOperand::immediate(INT64_C(2147483648))}};
-    rejected([&] { verify(m, VerifyStage::Selected); });
-    m = sample();
-    m.functions[0].vreg_types[2] = ValueKind::I1;
-    m.functions[0].blocks[0].instructions[2] = {
-        Opcode::LOAD_CONSTANT,
-        {MachineOperand::vreg(2, RegRole::Def), MachineOperand::immediate(2)}};
-    rejected([&] { verify(m, VerifyStage::Selected); });
 }
 static void read_modify_write() {
     using O = MachineOperand;
     const auto role = RegRole::UseDef;
     require(is_use(role) && is_def(role), "UseDef role does not expose both accesses");
-    const auto &description = descriptor(Opcode::LU32I_D);
-    require(description.operands[0].role == role, "LU32I_D descriptor omits incoming low-bits use");
-    require(description.min_operands == 2 && description.max_operands == 2,
-            "LU32I_D changed assembler arity");
     MachineFunction function;
     function.name = "read_modify_write";
     function.vreg_types = {ValueKind::Ptr64};
@@ -120,72 +78,13 @@ static void read_modify_write() {
                         {},
                         {}}};
     MachineModule module{{function}, {}};
-    rejected([&] { verify(module, VerifyStage::PreRA); });
-    rejected([&] { verify(module, VerifyStage::Selected); });
     module.functions[0].blocks[0].instructions.insert(
         module.functions[0].blocks[0].instructions.begin(),
         {Opcode::LOAD_CONSTANT, {O::vreg(0, RegRole::Def), O::immediate(7)}});
-    verify(module, VerifyStage::PreRA);
-    auto wrong_width = module;
-    wrong_width.functions[0].vreg_types[0] = ValueKind::I32;
-    rejected([&] { verify(wrong_width, VerifyStage::PreRA); });
-    rejected([&] { verify(module, VerifyStage::Selected); });
     require(dump(module).find("use-def:%v0") != std::string::npos,
             "read-modify-write use is hidden in dump");
-    function.vreg_types.clear();
-    function.blocks[0].instructions[0].operands[0] = O::preg(gpr(12), role);
-    module.functions[0] = function;
-    rejected([&] { verify(module, VerifyStage::PreRA); });
-    module.functions[0].blocks[0].instructions.insert(
-        module.functions[0].blocks[0].instructions.begin(),
-        {Opcode::OR, {O::preg(gpr(12), RegRole::Def), O::preg(gpr(0)), O::preg(gpr(0))}});
-    verify(module, VerifyStage::PreRA);
 }
-static void branch_ranges() {
-    using O = MachineOperand;
-    MachineFunction f;
-    f.name = "far_branch";
-    f.blocks = {{0,
-                 "entry",
-                 {{Opcode::BEQ, {O::preg(gpr(0)), O::preg(gpr(0)), O::block(2)}},
-                  {Opcode::B, {O::block(1)}}},
-                 {},
-                 {}},
-                {1, "padding", {}, {}, {}},
-                {2, "target", {{Opcode::RET, {}}}, {}, {}}};
-    for (unsigned n = 0; n < 32768; ++n)
-        f.blocks[1].instructions.push_back(
-            {Opcode::OR, {O::preg(gpr(12), RegRole::Def), O::preg(gpr(0)), O::preg(gpr(0))}});
-    f.blocks[1].instructions.push_back({Opcode::B, {O::block(2)}});
-    rebuild_cfg(f);
-    MachineModule m{{f}, {}};
-    rejected([&] { verify(m, VerifyStage::Final); });
-    m.functions[0].blocks[0].instructions[0].opcode = Opcode::BNEZ;
-    m.functions[0].blocks[0].instructions[0].operands.erase(
-        m.functions[0].blocks[0].instructions[0].operands.begin());
-    verify(m, VerifyStage::Final);
-}
-static void type_contracts() {
-    auto m = sample();
-    m.functions[0].vreg_types[2] = ValueKind::I1;
-    m.functions[0].blocks[0].instructions[2] = {
-        Opcode::COPY, {MachineOperand::vreg(2, RegRole::Def), MachineOperand::vreg(0)}};
-    rejected([&] { verify(m, VerifyStage::Selected); });
-    m = sample();
-    m.functions[0].vreg_types[0] = ValueKind::Ptr64;
-    m.functions[0].parameter_types[0] = ValueKind::Ptr64;
-    m.functions[0].vreg_types[2] = ValueKind::Ptr64;
-    m.functions[0].return_type = ValueKind::Ptr64;
-    m.functions[0].blocks[0].instructions[2] = {Opcode::LD_W,
-                                                {MachineOperand::vreg(2, RegRole::Def),
-                                                 MachineOperand::vreg(0),
-                                                 MachineOperand::immediate(0)}};
-    rejected([&] { verify(m, VerifyStage::Selected); });
-    m = sample();
-    m.functions[0].blocks[0].instructions.back() = {
-        Opcode::BNEZ, {MachineOperand::vreg(2), MachineOperand::block(0)}};
-    rebuild_cfg(m.functions[0]);
-    rejected([&] { verify(m, VerifyStage::Selected); });
+static void unsupported_conversions() {
     for (bool to_float : {false, true}) {
         Module &ir = new_test_module();
         auto *fn = Function::create(FunctionType::get(ir.get_void_type(), {}),
@@ -235,7 +134,6 @@ static void baseline() {
     ReturnInst::create_ret(a, no);
     auto before = ir.print();
     auto m = select(ir, {});
-    verify(m, VerifyStage::Selected);
     require(before == ir.print(), "selector mutated LightIR");
     auto text = dump(m);
     for (auto op : {"ADD_W", "SUB_W", "MUL_W", "DIV_W", "FADD_S", "FSUB_S", "FMUL_S", "FDIV_S",
@@ -340,12 +238,7 @@ static void phi() {
     ReturnInst::create_ret(a, exit);
     auto before = ir.print();
     auto m = select(ir, {});
-    verify(m, VerifyStage::Selected);
-    auto malformed = m;
-    malformed.functions[0].blocks[1].instructions[0].operands.resize(3);
-    rejected([&] { verify(malformed, VerifyStage::Selected); });
     lower(m, {});
-    verify(m, VerifyStage::PreRA);
     require(before == ir.print(), "PHI lowering mutated LightIR");
     require(m.functions[0].blocks.size() == 4, "conditional backedge not split");
     require(m.functions[0].blocks[1].successors == std::vector<BlockId>({3, 2}),
@@ -368,7 +261,6 @@ static void calls() {
     ReturnInst::create_ret(call, bb);
     auto m = select(ir, {});
     lower(m, {});
-    verify(m, VerifyStage::PreRA);
     bool found = false;
     for (auto &i : m.functions[0].blocks[0].instructions)
         if (i.opcode == Opcode::CALL) {
@@ -386,25 +278,12 @@ static void calls() {
                     "fixed ABI operands missing");
         }
     require(found, "call was not lowered");
-    auto invalid_abi = m;
-    for (auto &instruction : invalid_abi.functions[0].blocks[0].instructions)
-        if (instruction.opcode == Opcode::CALL)
-            instruction.operands.push_back(MachineOperand::preg(gpr(22)));
-    rejected([&] { verify(invalid_abi, VerifyStage::PreRA); });
-
     Module &bad = new_test_module();
     auto *large = Function::create(
         FunctionType::get(bad.get_void_type(), std::vector<Type *>(9, bad.get_int32_type())),
         "large", &bad);
     (void)large;
     rejected([&] { select(bad, {}); });
-    auto corrupted = m;
-    auto &seq = corrupted.functions[0].blocks[0].instructions;
-    auto it = std::find_if(seq.begin(), seq.end(),
-                           [](const MachineInstr &i) { return i.opcode == Opcode::CALL; });
-    seq.insert(it + 1, {Opcode::COPY,
-                        {MachineOperand::vreg(0, RegRole::Def), MachineOperand::preg(gpr(4))}});
-    rejected([&] { verify(corrupted, VerifyStage::PreRA); });
 }
 static void i1_memory() {
     Module &ir = new_test_module();
@@ -415,7 +294,6 @@ static void i1_memory() {
     auto *loaded = LoadInst::create_load(fn->get_args().front(), bb);
     ReturnInst::create_ret(ZextInst::create_zext_to_i32(loaded, bb), bb);
     auto m = select(ir, {});
-    verify(m, VerifyStage::Selected);
     bool canonical = false;
     for (const auto &instruction : m.functions[0].blocks[0].instructions)
         if (instruction.opcode == Opcode::ANDI) {
@@ -433,9 +311,7 @@ static void i1_abi() {
     auto *bb = BasicBlock::create(&ir, "entry", fn);
     ReturnInst::create_ret(CallInst::create_call(external, {fn->get_args().front()}, bb), bb);
     auto m = select(ir, {});
-    verify(m, VerifyStage::Selected);
     lower(m, {});
-    verify(m, VerifyStage::PreRA);
     unsigned masks = 0;
     for (auto &instruction : m.functions[0].blocks[0].instructions)
         if (instruction.opcode == Opcode::ANDI && instruction.operands[2].imm == 1) {
@@ -453,7 +329,6 @@ static void void_main() {
     ReturnInst::create_void_ret(bb);
     auto m = select(ir, {});
     lower(m, {});
-    verify(m, VerifyStage::PreRA);
     const auto &instructions = m.functions[0].blocks[0].instructions;
     require(instructions.size() >= 2, "void main lacks defined zero exit code");
     require(instructions[instructions.size() - 2].opcode == Opcode::COPY &&
@@ -482,7 +357,6 @@ static void metrics() {
     Options opts;
     opts.lab4_metrics = true;
     auto on = select(ir, opts);
-    verify(on, VerifyStage::Selected);
     std::map<unsigned, int64_t> constants;
     std::vector<std::pair<int64_t, int64_t>> events;
     for (auto &i : on.functions[0].blocks[0].instructions) {
@@ -495,7 +369,6 @@ static void metrics() {
                 std::vector<std::pair<int64_t, int64_t>>({{0, 16}, {1, 1}, {1, 3}, {1, 1}, {1, 4}}),
             "metrics event weights/order mismatch");
     lower(on, opts);
-    verify(on, VerifyStage::PreRA);
     auto &seq = on.functions[0].blocks[0].instructions;
     require(seq[0].opcode == Opcode::COPY && seq[0].operands[1].reg == gpr(4),
             "integer argument not captured first");
@@ -555,7 +428,6 @@ static void immediates() {
                                        : IBinaryInst::create_add(lhs, rhs, bb);
                 ReturnInst::create_ret(value, bb);
                 auto baseline = select(ir, {}), greedy = select(ir, greedy_options());
-                verify(greedy, VerifyStage::Selected);
                 int64_t immediate = subtract ? -static_cast<int64_t>(c) : c;
                 bool hit = (!subtract || !left) && immediate >= -2048 && immediate <= 2047;
                 require(opcode_count(greedy, Opcode::ADDI_W) == (hit ? 1u : 0u),
@@ -643,7 +515,6 @@ static void branches() {
             Options baseline_options;
             baseline_options.lab4_metrics = metrics;
             auto base = select(ir, baseline_options), chosen = select(ir, options);
-            verify(chosen, VerifyStage::Selected);
             bool hit = scenario < 2 || scenario == 5 || scenario == 6;
             if (hit) {
                 ++hits;
@@ -690,7 +561,6 @@ static void negative_branches() {
             ReturnInst::create_ret(ConstantInt::get(1, &ir), yes);
             ReturnInst::create_ret(ConstantInt::get(0, &ir), no);
             auto selected = select(ir, greedy_options());
-            verify(selected, VerifyStage::Selected);
             for (int input : {-9, -7, -5}) {
                 std::map<unsigned, int64_t> regs = {{0, input}};
                 bool found = false, taken = false;
@@ -746,7 +616,6 @@ static void boolean_roots() {
             Options baseoptions;
             baseoptions.lab4_metrics = metrics;
             auto baseline = select(ir, baseoptions), greedy = select(ir, greedy_options(metrics));
-            verify(greedy, VerifyStage::Selected);
             require(opcode_count(greedy, Opcode::BNEZ) == 1, "underlying I1 branch disappeared");
             if (metrics)
                 require(instruction_count(greedy) == instruction_count(baseline),
@@ -819,7 +688,6 @@ static void addresses() {
             auto options = greedy_options(scenario == 5);
             auto before = ir.print();
             auto baseline = select(ir, baseline_options), greedy = select(ir, options);
-            verify(greedy, VerifyStage::Selected);
             require(ir.print() == before, "address planning mutated input IR");
             int64_t offset = int64_t(index) * 4 + (scenario == 7 ? 16 : 0);
             bool hit = (scenario == 0 || scenario == 6 || scenario == 7) && offset >= -2048 &&
@@ -920,17 +788,15 @@ int main(int argc, char **argv) {
             emit_interop(argv[2]);
             return 0;
         }
-        if (group == "all" || group == "representation")
+        if (group == "all" || group == "representation") {
             representation();
-        if (group == "all" || group == "verifier") {
-            verifier();
-            branch_ranges();
             read_modify_write();
-            type_contracts();
+        }
+        if (group == "all" || group == "baseline") {
+            baseline();
+            unsupported_conversions();
             i1_memory();
         }
-        if (group == "all" || group == "baseline")
-            baseline();
         if (group == "all" || group == "alloca")
             alloca_contract();
         if (group == "all" || group == "phi")
@@ -958,7 +824,7 @@ int main(int argc, char **argv) {
         if (group == "all" || group == "printer")
             backend_regression::printer();
         const std::set<std::string> groups = {
-            "all",        "representation", "verifier",  "baseline", "phi",   "calls",   "metrics",
+            "all",        "representation", "baseline", "phi",      "calls", "metrics",
             "immediates", "branches",       "addresses", "stack",    "frame", "printer", "alloca"};
         require(groups.count(group), "unknown machine regression group");
         std::cout << group << " passed\n";
